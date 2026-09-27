@@ -187,6 +187,7 @@ logs/                   daily log files, kept for a week
 | Current theme | Above the gallery (hidden while searching): the theme on the desktop, if it's still downloaded, with its screenshot, light/dark, colors and **View theme**, plus a row of its wallpapers with the one on the desktop marked. Clicking another wallpaper sets it straight away: wallpaper only (saved fit, theme fill color), since the theme's mode and accent are already applied. Disappears after **Restore my original desktop**. |
 | Gallery | Two sections, **Included with Omarchy** and **Community**, each with a count; search (Ctrl+F) and the "downloaded only" filter apply to both, and an empty section is hidden. Screenshot cards in two virtualizing `ItemsRepeater`s (`UniformGridLayout`) sharing one scroll area, with arrow-key navigation between cards. Refresh (F5). Shows the cached catalog instantly and refreshes in the background when it's older than 12 hours (or has no default themes yet). Has loading, error, empty-result and "showing cached copy" states, plus an "Omarchy's themes are missing" warning when the default themes couldn't be listed. |
 | Theme detail | Large screenshot, key colors and terminal swatches, wallpaper picker, light/dark badge, **View on GitHub** (GitHub's mark). **Download** shows per-file progress in bytes and can be cancelled, and keeps going if you leave the page; **Download and apply** / **Apply to desktop** opens the Apply dialog. Downloaded themes render entirely from disk. |
+| Windows Terminal | On the theme page (downloaded or not): **Add to Windows Terminal** turns the theme's terminal colors into a Windows Terminal color scheme named "<Theme> (Omarchy)", through Terminal's [JSON fragment extensions](https://learn.microsoft.com/windows/terminal/json-fragment-extensions): one file per theme in `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\OmarchyThemes\`. The user's Terminal settings are never edited; **Remove** deletes the file. Terminal picks it up when it starts; the scheme is then chosen per profile (or under Profiles › Defaults). With the test switches, fragments go to the data folder instead. |
 | Wallpaper preview | Shows a wallpaper large over the theme page: from the **Preview** button, a hover button on a thumbnail, double-click, or the thumbnail's context menu. Full resolution (decoded at up to 2560 px) with a spinner while a remote image loads; previous/next (also ← / →, wrapping), file name and "3 of 8", **Use this wallpaper** (selects it for Apply) and close (also Esc, or click outside the bar). Focus moves into the preview and back to the thumbnail. |
 | Apply dialog | One checkbox per aspect (wallpaper + fit, light/dark, accent). Options the OS or theme can't provide are disabled with a reason. Can save the choices as one-click defaults. |
 | Downloaded | Downloaded themes with one-click **Set as desktop theme** (uses the saved defaults), plus Apply with options, View details and Remove. |
@@ -299,6 +300,7 @@ Known limitations:
 | `ThemeApplier` (fake backend) | snapshot-before-first-apply, abort if snapshot fails, per-step user/capability/data gating, partial failure, restore, the theme background passed as the wallpaper fill color |
 | Accent math | ABGR/ARGB packing, 7-shade palette, `AccentPalette` bytes, normalizing unusable accents |
 | Apply summaries | success, partial failure, total failure, snapshot failure and all-skipped messages |
+| Terminal colors | named `colors.toml` mapped like Omarchy's own terminal template (black = background, white = foreground, bright black = `muted`, bright white and cursor = `bright_foreground`), `color0..15` and alacritty used as-is, fallbacks for missing colors |
 
 **Windows backend (`OmarchyThemes.Platform.Windows.Tests`)**, run against in-memory registry,
 wallpaper and broadcast fakes:
@@ -310,6 +312,7 @@ wallpaper and broadcast fakes:
 | Wallpaper | conversion before setting, fit and exact fill color passed through, `COLORREF` packing (0x00BBGGRR) |
 | Snapshot/restore | registry values restored and previously-absent values deleted, per-monitor wallpapers, fit and fill color, falling back to the private copy when the original file is gone, JSON round-trip |
 | WIC conversion | real Windows Imaging Component on temp files: PNG output, reuse, actionable error for unreadable images |
+| Windows Terminal fragments | a complete scheme (name + all 16 colors, which Terminal requires), UTF-8 without a BOM, schemes only (no profile changes), replace/remove/cleanup, unusual names, slug path safety |
 
 Fixtures are hand-written to mirror the real page and theme repos rather than copied from them.
 

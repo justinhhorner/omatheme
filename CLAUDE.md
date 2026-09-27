@@ -22,7 +22,8 @@ pointers (as `docs/macos-to-windows.md` did; it was deleted once empty), and say
 
 **Pending for macOS (read this first on a Mac):** `docs/windows-to-macos.md`: (1) remove the file name shown under
 each wallpaper thumbnail on the theme page; (2) the "Current theme" section above the gallery with one-click
-wallpaper switching, plus the `lastAppliedWallpaper` fix that goes with it (Windows already did both).
+wallpaper switching, plus the `lastAppliedWallpaper` fix that goes with it; (3) sending a theme's terminal
+colors to a macOS terminal (Windows adds them to Windows Terminal). Windows already did all three.
 
 ## Decisions already made (don't reopen)
 
@@ -201,7 +202,7 @@ Gotchas found:
 ```bash
 cd windows
 dotnet build OmarchyThemes.sln
-dotnet test          # Core (139) + Windows backend (24) tests; 5 live checks skipped
+dotnet test          # Core (143) + Windows backend (31) tests; 5 live checks skipped
 dotnet run --project src/OmarchyThemes.App
 ```
 

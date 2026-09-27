@@ -56,3 +56,34 @@ Windows: `windows/src/OmarchyThemes.App/ViewModels/CurrentThemeViewModel.cs`, `G
 macOS: add the card at the top of `macos/App/Views/GalleryView.swift`'s grid, driven by `AppModel`
 (the active slug/wallpaper it already tracks for the "Current" badges). Use a `ScrollView(.horizontal)` of
 wallpaper thumbnails and `model.apply(theme, wallpaperFile:options:)` with wallpaper-only options.
+
+## 3. Send a theme's terminal colors to a terminal app
+
+Windows: **Add to Windows Terminal** on the theme page writes the theme's terminal colors as a Windows
+Terminal color scheme ("<Theme> (Omarchy)") via Terminal's JSON fragments, one file per theme; **Remove**
+deletes it. The user's own terminal settings are never edited.
+
+These parts port directly:
+
+- **Palette:** named `colors.toml` now also keeps `muted` and `bright_foreground` (`Palette.Muted`,
+  `Palette.BrightForeground`). Windows: `windows/src/OmarchyThemes.Core/Palettes/Palette.cs`, `PaletteParsers.cs`.
+- **The mapping** (`TerminalColors.From` in `windows/src/OmarchyThemes.Core/Palettes/TerminalColors.cs`, tests
+  in `TerminalColorsTests`): follows Omarchy's own template `default/themed/alacritty.toml.tpl` in
+  `omacom/omarchy`: black = background, white = foreground, bright black = `muted`, bright white and cursor =
+  `bright_foreground`; `color0..15` / alacritty colors used as-is; missing bright colors fall back to normal.
+  Port it to the Kit with the same four tests.
+- **Old downloads:** themes downloaded before `muted`/`bright_foreground` were read saved a palette without
+  them; the Windows view model looks the theme up again (usually cached) before exporting, falling back to
+  the saved palette offline (`ThemeDetailViewModel.Terminal.cs`, `PaletteForTerminalAsync`).
+
+The target differs on macOS. Candidates that, like Windows Terminal's fragments, add a scheme without editing the
+user's config (decide on the Mac, and check what's installed):
+
+- **Ghostty**: a theme file in `~/.config/ghostty/themes/<name>` (`background = …`, `foreground = …`,
+  `palette = 0=#…` … `palette = 15=#…`, `cursor-color`, `selection-background`); the user picks it with
+  `theme = <name>`. Omarchy itself ships Ghostty configs, so this is the closest match.
+- **iTerm2**: a Dynamic Profile JSON in `~/Library/Application Support/iTerm2/DynamicProfiles/` (colors as
+  RGB component dictionaries); appears as a new profile.
+- Terminal.app needs a `.terminal` profile with archived `NSColor`s: more work, lower value.
+
+Put it on the theme page with add/remove and the same "restart the terminal to see it" guidance.
