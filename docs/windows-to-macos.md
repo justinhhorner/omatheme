@@ -7,7 +7,7 @@ code, and keep macOS conventions (see CLAUDE.md).
 The usual rule applies: never apply a theme or restore the desktop on the real machine without asking. Run UI
 checks with `OMARCHY_THEMES_DRY_RUN=1` and `OMARCHY_THEMES_DATA_DIR=<temp>`.
 
-When an item is done, delete it from this file (and this file once it's empty), and update README/CLAUDE.md.
+When an item is done, delete it from this file (and this file once it's empty), and update `docs/ARCHITECTURE.md` (and CLAUDE.md where relevant; keep the README minimal).
 
 ---
 

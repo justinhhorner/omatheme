@@ -1,8 +1,10 @@
 # CLAUDE.md: Omarchy Themes
 
 Context for Claude Code sessions on this repo. The Windows app was built in one session on Windows; this file
-carries its decisions and lessons so work can continue on the macOS app on a Mac. Read `README.md` for the full
-architecture; this file holds what the README doesn't: decisions, rules and gotchas.
+carries its decisions and lessons so work can continue on the macOS app on a Mac. Read `docs/ARCHITECTURE.md` for the
+full architecture and `README.md` for the overview and build steps; this file holds what those don't:
+decisions, rules and gotchas. Keep the README minimal (header, screenshot, build steps); detail goes in
+`docs/ARCHITECTURE.md`.
 
 ## What this is
 
@@ -145,7 +147,7 @@ Key behaviours to keep on macOS:
 
 ## macOS implementation (v0.1)
 
-What was built, per the confirmed plan. See README "Building on macOS" / "Architecture (macOS)".
+What was built, per the confirmed plan. See README "Building on macOS" and `docs/ARCHITECTURE.md` "Architecture (macOS)".
 
 - `macos/OmarchyThemesKit` (Swift package, `swift test`): target `OmarchyThemesKit` (no AppKit) ports Core;
   target `OmarchyThemesMac` holds `MacDesktopBackend` behind a fake-able `WallpaperAPI` (mirrors
