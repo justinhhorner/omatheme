@@ -20,8 +20,9 @@ downloads that survive navigation, the theme fill color around Fit/Center, dry-r
 opt-in live checks). When one app gains a feature, list it for the other in a `docs/<from>-to-<to>.md` with file
 pointers (as `docs/macos-to-windows.md` did; it was deleted once empty), and say so here.
 
-**Pending for macOS (read this first on a Mac):** `docs/windows-to-macos.md`: remove the file name shown under
-each wallpaper thumbnail on the theme page (Windows already did).
+**Pending for macOS (read this first on a Mac):** `docs/windows-to-macos.md`: (1) remove the file name shown under
+each wallpaper thumbnail on the theme page; (2) the "Current theme" section above the gallery with one-click
+wallpaper switching, plus the `lastAppliedWallpaper` fix that goes with it (Windows already did both).
 
 ## Decisions already made (don't reopen)
 
@@ -200,7 +201,7 @@ Gotchas found:
 ```bash
 cd windows
 dotnet build OmarchyThemes.sln
-dotnet test          # Core (136) + Windows backend (24) tests; 5 live checks skipped
+dotnet test          # Core (139) + Windows backend (24) tests; 5 live checks skipped
 dotnet run --project src/OmarchyThemes.App
 ```
 
