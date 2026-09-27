@@ -40,6 +40,7 @@ macos/
     Tests/                         Swift Testing, platform-neutral + backend against a fake
   tools/generate-app-icon.swift    renders the asset-catalog icon set from design/AppIcon.svg
 fixtures/                          test fixtures shared by the Windows and Swift tests
+docs/windows-to-macos.md           Windows changes still to bring to the macOS app
 ```
 
 ## Building on Windows

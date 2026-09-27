@@ -20,6 +20,9 @@ downloads that survive navigation, the theme fill color around Fit/Center, dry-r
 opt-in live checks). When one app gains a feature, list it for the other in a `docs/<from>-to-<to>.md` with file
 pointers (as `docs/macos-to-windows.md` did; it was deleted once empty), and say so here.
 
+**Pending for macOS (read this first on a Mac):** `docs/windows-to-macos.md`: remove the file name shown under
+each wallpaper thumbnail on the theme page (Windows already did).
+
 ## Decisions already made (don't reopen)
 
 - **Separate native apps per platform, no cross-platform UI.** A Tauri plan was rejected in favour of WinUI 3 on
