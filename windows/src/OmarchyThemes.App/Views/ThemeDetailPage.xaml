@@ -375,12 +375,48 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- The terminal colors, as a Windows Terminal color scheme (JSON fragment). -->
+                    <Border
+                        Margin="0,8,0,0"
+                        Style="{StaticResource CardStyle}"
+                        Visibility="{x:Bind ViewModel.ShowTerminal, Mode=OneWay}">
+                        <Grid ColumnSpacing="12" RowSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <FontIcon
+                                VerticalAlignment="Top"
+                                FontSize="20"
+                                Glyph="&#xE756;" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="Windows Terminal" />
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.TerminalHint, Mode=OneWay}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                AutomationProperties.Name="{x:Bind ViewModel.TerminalButtonText, Mode=OneWay}"
+                                Command="{x:Bind ViewModel.ToggleTerminalSchemeCommand}"
+                                Content="{x:Bind ViewModel.TerminalButtonText, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanUseTerminal, Mode=OneWay}" />
+                        </Grid>
+                    </Border>
+
                     <TextBlock
                         Margin="1,16,0,0"
                         Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         TextWrapping="Wrap">
-                        Windows uses the wallpaper, the light/dark mode and the accent color. Terminal and editor colors are shown for reference.
+                        Windows uses the wallpaper, the light/dark mode and the accent color. The terminal colors can go to Windows Terminal; editor colors are shown for reference.
                     </TextBlock>
                 </StackPanel>
             </Grid>

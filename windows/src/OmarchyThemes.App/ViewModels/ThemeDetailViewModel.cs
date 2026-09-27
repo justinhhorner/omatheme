@@ -10,6 +10,7 @@ using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Storage;
 using OmarchyThemes.Core.Themes;
 using OmarchyThemes.Core.Theming;
+using OmarchyThemes.Platform.Windows;
 
 namespace OmarchyThemes.App.ViewModels;
 
@@ -25,12 +26,13 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
     private readonly SettingsStore _settings;
     private readonly NavigationService _navigation;
     private readonly ThemeDownloads _downloads;
+    private readonly WindowsTerminalSchemes _terminal;
     private DownloadOperation? _download;
     private ImageSource? _screenshot;
 
     public ThemeDetailViewModel(
         ThemeDetailsService details, ThemeStore store, ApplyService apply, SettingsStore settings,
-        NavigationService navigation, ThemeDownloads downloads)
+        NavigationService navigation, ThemeDownloads downloads, WindowsTerminalSchemes terminal)
     {
         _details = details;
         _store = store;
@@ -38,6 +40,7 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
         _settings = settings;
         _navigation = navigation;
         _downloads = downloads;
+        _terminal = terminal;
     }
 
     public CatalogEntry Entry { get; private set; } = null!;
@@ -141,6 +144,8 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
         OnPropertyChanged(string.Empty);
 
         // A download started earlier (then navigated away from) is still running: show its live progress.
+        RefreshTerminalState();
+
         if (_downloads.Get(entry.Slug) is { } running)
             _ = ObserveDownloadAsync(running, selectedIndex: 0);
 

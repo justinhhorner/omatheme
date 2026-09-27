@@ -51,6 +51,8 @@ public static class ColorsTomlParser
             Accent = get("accent") ?? get("color4") ?? get("blue") ?? foreground,
             Cursor = get("cursor"),
             Selection = get("selection_background") ?? get("selection"),
+            Muted = get("muted"),
+            BrightForeground = get("bright_foreground"),
             DeclaredMode = ParseMode(values.GetValueOrDefault("mode")),
             Swatches = swatches,
             Source = PaletteSource.ColorsToml,

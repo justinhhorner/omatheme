@@ -26,6 +26,12 @@ public sealed record Palette
     public RgbColor? Cursor { get; init; }
     public RgbColor? Selection { get; init; }
 
+    /// <summary>Named colors.toml `muted` (Omarchy uses it as the terminal's bright black).</summary>
+    public RgbColor? Muted { get; init; }
+
+    /// <summary>Named colors.toml `bright_foreground` (the terminal's bright white and cursor).</summary>
+    public RgbColor? BrightForeground { get; init; }
+
     /// <summary>Mode stated by the theme itself (colors.toml `mode` or a light.mode file).</summary>
     public AppearanceMode? DeclaredMode { get; init; }
 

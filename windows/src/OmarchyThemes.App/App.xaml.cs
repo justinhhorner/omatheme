@@ -56,6 +56,10 @@ public partial class App : Application
             ? new DryRunDesktopBackend()
             : WindowsDesktopBackend.CreateDefault(Path.Combine(paths.Root, "original-desktop")));
         services.AddSingleton<ISnapshotStore>(_ => new FileSnapshotStore(paths));
+        // Test switches keep Windows Terminal's real fragments folder untouched too.
+        services.AddSingleton(_ => new WindowsTerminalSchemes(environment.IsDryRun || environment.DataDir is not null
+            ? Path.Combine(paths.Root, "windows-terminal-fragments")
+            : WindowsTerminalSchemes.DefaultFragmentsDir));
         services.AddSingleton<ThemeApplier>();
         services.AddSingleton<ApplyService>();
         services.AddSingleton<NavigationService>();

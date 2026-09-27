@@ -46,7 +46,8 @@ public sealed class AppPaths
         Directory.CreateDirectory(ThemesDir);
     }
 
-    internal static bool IsValidSlug(string? slug) =>
+    /// <summary>True for slugs that are safe as a single folder or file name.</summary>
+    public static bool IsValidSlug(string? slug) =>
         !string.IsNullOrEmpty(slug)
         && slug.Length <= 100
         && slug is not "." and not ".."
