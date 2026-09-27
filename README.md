@@ -52,8 +52,9 @@ cross-build.
 
 ## Architecture (Windows)
 
-> **Status:** only the scaffold exists so far: solution, window shell, welcome/about/settings
-> pages, icon, and test project. The sections below describe the design being implemented.
+> **Status:** Core is implemented and tested: catalog, GitHub resolution, palettes, local store,
+> and `ThemeApplier`. Still to come: the Windows `IDesktopBackend` and the Gallery, Detail and
+> Downloaded views. The app currently shows the shell with placeholder pages.
 
 - **Core** holds all logic that doesn't touch the OS, so it's unit-tested without Windows:
   catalog parsing, GitHub repo resolution with an ETag cache, palette parsers, the on-disk theme
@@ -110,6 +111,18 @@ own checkbox in the Apply dialog.
 
 ## Tests
 
-`dotnet test` in `windows/` runs the Core suite: catalog parser fixtures, repo URL parsing,
-palette parsers, the GitHub client against a fake HTTP handler, accent math, and `ThemeApplier`
-against a fake `IDesktopBackend`. No OS state is touched.
+`dotnet test` in `windows/` runs the Core suite. No OS state is touched and nothing hits the
+network:
+
+| Area | Covered |
+|---|---|
+| Catalog parser | live `li > a > img + span` markup, `<figure>` layout, relative screenshots, skipping nav/non-GitHub/duplicate cards, unique slugs |
+| Repo links | `.git`, trailing slashes, `/tree/<ref>/<subdir>`, rejecting `/compare`, `/issues`, non-GitHub hosts, path traversal |
+| Palettes | both `colors.toml` shapes, `alacritty.toml`, accent/mode fallbacks, lenient parsing of invalid TOML |
+| HTTP cache / GitHub | ETag 304 revalidation, max-age, stale-when-offline, rate-limit reset time, 404, token sent only to the API |
+| Theme resolution | palette priority, `light.mode`, wallpaper discovery and natural ordering, repo sub-folders |
+| Store | atomic install (no partial theme on failure/cancel), reinstall, remove, settings round-trip |
+| `ThemeApplier` (fake backend) | snapshot-before-first-apply, abort if snapshot fails, per-step user/capability/data gating, partial failure, restore |
+| Accent math | ABGR/ARGB packing, 7-shade palette, `AccentPalette` bytes, normalizing unusable accents |
+
+Fixtures are hand-written to mirror the real page and theme repos rather than copied from them.

@@ -1,0 +1,22 @@
+# Newer Omarchy colors.toml shape: named keys + explicit mode.
+mode = "light"
+
+accent = "#2e7de9"
+selection = "#b7c1e3"
+muted = "#8990b3"
+
+background = "#e1e2e7"
+dark_background = "#d0d5e3"
+foreground = "#3760bf"
+
+red = "#f52a65"
+yellow = "#8c6c3e"
+orange = "#b15c00"
+green = "#587539"
+cyan = "#007197"
+blue = "#2e7de9"
+magenta = "#9854f1"
+brown = "#6b4b3e"
+
+bright_red = "#ff4774"
+bright_blue = "#358aff"
