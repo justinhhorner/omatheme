@@ -1,0 +1,52 @@
+# XcodeGen spec for the macOS app. Generate the project with `xcodegen` in this folder;
+# OmarchyThemes.xcodeproj is not committed.
+name: OmarchyThemes
+
+options:
+  bundleIdPrefix: com.justinhhorner
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+packages:
+  OmarchyThemesKit:
+    path: OmarchyThemesKit
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # Not sandboxed (see CLAUDE.md); hardened runtime for Developer ID distribution.
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+
+targets:
+  OmarchyThemes:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+    dependencies:
+      - package: OmarchyThemesKit
+        product: OmarchyThemesKit
+      - package: OmarchyThemesKit
+        product: OmarchyThemesMac
+    settings:
+      base:
+        PRODUCT_NAME: Omarchy Themes
+        PRODUCT_MODULE_NAME: OmarchyThemes
+        PRODUCT_BUNDLE_IDENTIFIER: com.justinhhorner.OmarchyThemes
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Omarchy Themes
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Themes belong to their authors. Not affiliated with Omarchy or 37signals."
+    scheme:
+      testTargets:
+        - package: OmarchyThemesKit/OmarchyThemesKitTests
+        - package: OmarchyThemesKit/OmarchyThemesMacTests

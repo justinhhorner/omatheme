@@ -480,3 +480,12 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# macOS app (Swift / Xcode)
+macos/OmarchyThemes.xcodeproj/
+macos/build/
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
+*.xcuserstate
