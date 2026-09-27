@@ -21,7 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Shared with the macOS tests; see fixtures/ at the repo root. -->
+    <None Include="..\..\..\fixtures\**\*" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
