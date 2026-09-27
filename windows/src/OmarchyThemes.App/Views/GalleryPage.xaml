@@ -3,20 +3,226 @@
     x:Class="OmarchyThemes.App.Views.GalleryPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="Transparent">
+    xmlns:h="using:OmarchyThemes.App.Helpers"
+    xmlns:vm="using:OmarchyThemes.App.ViewModels"
+    Background="Transparent"
+    NavigationCacheMode="Required">
 
-    <Grid Margin="{StaticResource PageMargin}">
+    <Grid Padding="36,24,36,0">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Gallery" />
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1000" />
+                    </VisualState.StateTriggers>
+                </VisualState>
+                <VisualState x:Name="Narrow">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="HeaderActions.(Grid.Row)" Value="1" />
+                        <Setter Target="HeaderActions.(Grid.Column)" Value="0" />
+                        <Setter Target="HeaderActions.Margin" Value="0,12,0,0" />
+                        <Setter Target="HeaderActions.HorizontalAlignment" Value="Stretch" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
 
-        <!-- Placeholder until the feature is implemented. -->
-        <TextBlock
+        <!-- Header: title + subtitle, search / filter / refresh -->
+        <Grid Margin="0,0,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Bottom">
+                <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Themes" />
+                <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" />
+            </StackPanel>
+
+            <Grid
+                x:Name="HeaderActions"
+                Grid.Column="1"
+                VerticalAlignment="Bottom"
+                ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="220" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <AutoSuggestBox
+                    x:Name="SearchBox"
+                    MinWidth="260"
+                    AutomationProperties.Name="Search themes"
+                    PlaceholderText="Search themes"
+                    QueryIcon="Find"
+                    Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                    <AutoSuggestBox.KeyboardAccelerators>
+                        <KeyboardAccelerator
+                            Key="F"
+                            Invoked="SearchAccelerator_Invoked"
+                            Modifiers="Control" />
+                    </AutoSuggestBox.KeyboardAccelerators>
+                </AutoSuggestBox>
+
+                <ToggleButton
+                    Grid.Column="1"
+                    AutomationProperties.Name="Show downloaded themes only"
+                    IsChecked="{x:Bind ViewModel.ShowDownloadedOnly, Mode=TwoWay}"
+                    ToolTipService.ToolTip="Show downloaded themes only">
+                    <FontIcon FontSize="16" Glyph="&#xE896;" />
+                </ToggleButton>
+
+                <Button
+                    Grid.Column="2"
+                    AutomationProperties.Name="Refresh catalog"
+                    Command="{x:Bind ViewModel.RefreshCommand}"
+                    ToolTipService.ToolTip="Refresh from omarchy.org (F5)">
+                    <Button.KeyboardAccelerators>
+                        <KeyboardAccelerator Key="F5" />
+                    </Button.KeyboardAccelerators>
+                    <Grid Width="16" Height="16">
+                        <FontIcon FontSize="16" Glyph="&#xE72C;" Visibility="{x:Bind h:Ui.Collapsed(ViewModel.IsRefreshing), Mode=OneWay}" />
+                        <ProgressRing
+                            Width="16"
+                            Height="16"
+                            IsActive="{x:Bind ViewModel.IsRefreshing, Mode=OneWay}" />
+                    </Grid>
+                </Button>
+            </Grid>
+        </Grid>
+
+        <InfoBar
             Grid.Row="1"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-            Text="The theme catalog from omarchy.org/themes will appear here." />
+            Margin="0,0,0,12"
+            IsOpen="{x:Bind h:Ui.IsSet(ViewModel.Notice), Mode=OneWay}"
+            Message="{x:Bind ViewModel.Notice, Mode=OneWay}"
+            Severity="Warning" />
+
+        <Grid Grid.Row="2">
+            <ItemsView
+                x:Name="ThemesView"
+                Padding="0,0,0,36"
+                IsItemInvokedEnabled="True"
+                ItemInvoked="ThemesView_ItemInvoked"
+                ItemsSource="{x:Bind ViewModel.VisibleThemes, Mode=OneWay}"
+                SelectionMode="None"
+                Visibility="{x:Bind ViewModel.HasThemes, Mode=OneWay}">
+                <ItemsView.Layout>
+                    <!-- Uniform stretch keeps each card's proportions, so screenshots stay ~16:9. -->
+                    <UniformGridLayout
+                        ItemsStretch="Uniform"
+                        MinColumnSpacing="16"
+                        MinItemHeight="214"
+                        MinItemWidth="280"
+                        MinRowSpacing="16" />
+                </ItemsView.Layout>
+                <ItemsView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ThemeCardViewModel">
+                        <ItemContainer AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}" CornerRadius="{StaticResource OverlayCornerRadius}">
+                            <Grid
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource OverlayCornerRadius}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Grid Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" CornerRadius="7,7,0,0">
+                                    <Image Source="{x:Bind Screenshot}" Stretch="UniformToFill" />
+                                </Grid>
+
+                                <Grid Grid.Row="1" Padding="12,8,12,10" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock
+                                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                                            Text="{x:Bind Name}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            Text="{x:Bind RepoDisplay}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Spacing="6">
+                                        <Border Style="{StaticResource AccentBadgeStyle}" Visibility="{x:Bind IsActive, Mode=OneWay}">
+                                            <TextBlock
+                                                Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Text="Current" />
+                                        </Border>
+                                        <FontIcon
+                                            FontSize="14"
+                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                            Glyph="&#xE73E;"
+                                            ToolTipService.ToolTip="Downloaded"
+                                            Visibility="{x:Bind IsDownloaded, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </ItemContainer>
+                    </DataTemplate>
+                </ItemsView.ItemTemplate>
+            </ItemsView>
+
+            <!-- Loading (first run, nothing cached) -->
+            <StackPanel Style="{StaticResource EmptyStatePanelStyle}" Visibility="{x:Bind ViewModel.ShowLoading, Mode=OneWay}">
+                <ProgressRing HorizontalAlignment="Center" IsActive="{x:Bind ViewModel.ShowLoading, Mode=OneWay}" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource SecondaryTextStyle}"
+                    Text="Loading themes from omarchy.org…" />
+            </StackPanel>
+
+            <!-- Error with nothing to show -->
+            <StackPanel Style="{StaticResource EmptyStatePanelStyle}" Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}">
+                <FontIcon Glyph="&#xE774;" Style="{StaticResource EmptyStateIconStyle}" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    Text="Couldn't load themes" />
+                <TextBlock
+                    Style="{StaticResource SecondaryTextStyle}"
+                    Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}"
+                    TextAlignment="Center" />
+                <Button
+                    HorizontalAlignment="Center"
+                    Command="{x:Bind ViewModel.RefreshCommand}"
+                    Content="Try again"
+                    Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+
+            <!-- Search / filter matched nothing -->
+            <StackPanel Style="{StaticResource EmptyStatePanelStyle}" Visibility="{x:Bind ViewModel.IsEmptyResult, Mode=OneWay}">
+                <FontIcon Glyph="&#xE721;" Style="{StaticResource EmptyStateIconStyle}" />
+                <TextBlock
+                    Style="{StaticResource SecondaryTextStyle}"
+                    Text="{x:Bind ViewModel.ResultText, Mode=OneWay}"
+                    TextAlignment="Center" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>

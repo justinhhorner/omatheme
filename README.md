@@ -10,7 +10,7 @@ affiliated with Omarchy or 37signals; every theme belongs to its author.
 
 | Platform | Stack | Status |
 |---|---|---|
-| Windows 10 (19041+) / 11 | WinUI 3 · Windows App SDK 2.5 · .NET 10 | Scaffolded (`windows/`) |
+| Windows 10 (19041+) / 11 | WinUI 3 · Windows App SDK 2.5 · .NET 10 | Working v0.1 (`windows/`) |
 | macOS | SwiftUI (separate native app) | Planned (`macos/`) |
 
 Each platform is its own native codebase so it can follow that OS's conventions (Mica + Fluent
@@ -28,7 +28,8 @@ windows/
   src/OmarchyThemes.Core/          net10.0, no Windows deps: catalog, GitHub, palettes, store, ThemeApplier
   src/OmarchyThemes.Platform.Windows/  IDesktopBackend for Windows (COM + registry, via CsWin32)
   src/OmarchyThemes.App/           WinUI 3 app (unpackaged, self-contained Windows App SDK)
-  tests/OmarchyThemes.Core.Tests/  xUnit
+  tests/OmarchyThemes.Core.Tests/  xUnit, platform-neutral
+  tests/OmarchyThemes.Platform.Windows.Tests/  xUnit, Windows backend against fake registry/COM
   tools/Generate-AppIcon.ps1       renders Assets/AppIcon.png + .ico
 macos/                             (later)
 ```
@@ -52,16 +53,40 @@ cross-build.
 
 ## Architecture (Windows)
 
-> **Status:** Core is implemented and tested: catalog, GitHub resolution, palettes, local store,
-> and `ThemeApplier`. Still to come: the Windows `IDesktopBackend` and the Gallery, Detail and
-> Downloaded views. The app currently shows the shell with placeholder pages.
-
 - **Core** holds all logic that doesn't touch the OS, so it's unit-tested without Windows:
   catalog parsing, GitHub repo resolution with an ETag cache, palette parsers, the on-disk theme
   store, and `ThemeApplier`, which drives an `IDesktopBackend` abstraction.
-- **Platform.Windows** implements `IDesktopBackend` with real Windows APIs.
+- **Platform.Windows** implements `IDesktopBackend` (`WindowsDesktopBackend`). Each OS touchpoint
+  sits behind a small interface (`IRegistryAccess`, `IWallpaperApi`, `ISettingsBroadcaster`,
+  `IImageConverter`) so the backend is tested without changing the machine it runs on.
 - **App** is the WinUI 3 UI (MVVM with CommunityToolkit.Mvvm, DI via
-  Microsoft.Extensions.DependencyInjection). Local data lives in `%LOCALAPPDATA%\OmarchyThemes`.
+  Microsoft.Extensions.DependencyInjection).
+
+Local data lives in `%LOCALAPPDATA%\OmarchyThemes`:
+
+```
+cache/                  HTTP cache (catalog page, GitHub trees, palette files) + ETags
+themes/<slug>/          theme.json manifest, wallpapers/, screenshot
+settings.json           welcome seen, one-click apply defaults, last applied theme
+original-desktop.json   snapshot taken before the first Apply
+original-desktop/       private copies of the original wallpapers, used by Restore
+```
+
+### The UI
+
+| View | What it does |
+|---|---|
+| Welcome | First launch only (and from Settings): what the app is, links to omarchy.org and basecamp/omarchy, **Browse Themes**. |
+| Gallery | Screenshot card grid (`ItemsView` + `UniformGridLayout`), search (Ctrl+F), "downloaded only" filter, refresh (F5). Shows the cached catalog instantly and refreshes in the background when it's older than 12 hours. Has loading, error, empty-result and "showing cached copy" states. |
+| Theme detail | Large screenshot, key colors and terminal swatches, wallpaper picker, repo link, light/dark badge. **Download** shows per-file progress and can be cancelled; **Download and apply** / **Apply to desktop** opens the Apply dialog. Downloaded themes render entirely from disk. |
+| Apply dialog | One checkbox per aspect (wallpaper + fit, light/dark, accent). Options the OS or theme can't provide are disabled with a reason. Can save the choices as one-click defaults. |
+| Downloaded | Downloaded themes with one-click **Set as desktop theme** (uses the saved defaults), plus Apply with options, View details and Remove. |
+| Settings | One-click apply defaults, **Restore my original desktop**, storage and cache, GitHub rate-limit info, show welcome. |
+| About | Credits Omarchy with links to omarchy.org, the theme gallery and basecamp/omarchy. |
+
+Windows conventions: Mica backdrop, the `TitleBar` control with back and pane buttons and standard
+caption buttons, `NavigationView`, Fluent cards, `InfoBar` for every network or apply outcome, and
+following the system light/dark setting.
 
 ### Catalog parsing
 
@@ -69,8 +94,10 @@ The live omarchy.org/themes page is a minified Astro page where each theme is
 `ul > li > a[href="https://github.com/…"] > img[src="/assets/themes/<slug>.webp"] + span(name)`
 (there are no `<figure>` elements, despite older descriptions). The parser selects those anchors
 and resolves screenshot URLs against the page URL. A `<figure>` layout is accepted as a fallback,
-and entries without a GitHub link are skipped. The parsed catalog is cached as JSON and refreshed on
-demand.
+and entries without a GitHub link are skipped. The raw page (not the parsed result) is cached, so
+the app starts instantly and offline, and a parser fix applies to the cached copy too. If the page
+ever yields zero themes, the app says the layout may have changed instead of showing an empty
+gallery.
 
 ### Theme resolution (GitHub)
 
@@ -89,15 +116,33 @@ the limit.
 
 ### Applying a theme on Windows
 
+Everything is per-user (HKCU) and needs no elevation.
+
 | Aspect | Mechanism |
 |---|---|
-| Wallpaper | `IDesktopWallpaper::SetWallpaper` on every monitor + `SetPosition(DWPOS_FILL)`; `SystemParametersInfoW(SPI_SETDESKWALLPAPER)` fallback |
-| Light / dark | `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` `AppsUseLightTheme` / `SystemUsesLightTheme`, then broadcast `WM_SETTINGCHANGE("ImmersiveColorSet")` |
-| Accent color | `HKCU\Software\Microsoft\Windows\DWM` `AccentColor`/`ColorizationColor`, `…\Explorer\Accent` `AccentPalette`/`AccentColorMenu`, `AutoColorization=0`, then broadcast. Windows has no public API for this, so it's best effort and some shell surfaces only refresh after sign-in. |
+| Wallpaper | `IDesktopWallpaper::SetPosition` (the chosen fit) + `SetWallpaper(NULL, path)` for every monitor, on an STA thread; `SystemParametersInfoW(SPI_SETDESKWALLPAPER)` fallback. WebP and other formats are first converted to PNG with WIC (`BitmapDecoder`/`BitmapEncoder`). |
+| Light / dark | `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` `AppsUseLightTheme` + `SystemUsesLightTheme`, then `WM_SETTINGCHANGE("ImmersiveColorSet")` via `SendMessageTimeout(SMTO_ABORTIFHUNG)` |
+| Accent color | `HKCU\…\DWM` `AccentColor` (ABGR) + `ColorizationColor`/`ColorizationAfterglow` (ARGB); `HKCU\…\Explorer\Accent` `AccentPalette` (8 × RGBA shades), `AccentColorMenu`, `StartColorMenu`; `HKCU\Control Panel\Desktop` `AutoColorization=0`; then the same broadcast. Near-black or near-white accents are lifted to a readable lightness first. |
 
-The app never changes anything on launch. Before the first Apply it snapshots the current
-wallpaper, mode and accent so **Restore my original desktop** can undo it. Each aspect has its
-own checkbox in the Apply dialog.
+Safety:
+
+- Nothing changes on launch or until the user picks a theme and applies it.
+- Before the first Apply, the backend snapshots every registry value it may touch (including
+  "value was absent") and each monitor's wallpaper. It keeps a private copy of each wallpaper
+  file, because Windows' `TranscodedWallpaper` is overwritten by the next wallpaper change.
+  **Restore my original desktop** writes the values back (deleting ones that didn't exist before)
+  and restores the per-monitor wallpapers and fit.
+- If the snapshot can't be taken, nothing is applied.
+
+Known limitations:
+
+- **Accent color:** Windows has no public API for it. The values above mirror what the Settings
+  app stores, and most surfaces pick them up from the broadcast, but some only refresh after
+  signing out and back in. The UI says so.
+- **Restoring a slideshow or Windows Spotlight background** puts back the image that was showing
+  when the snapshot was taken, not the slideshow itself.
+- **WebP wallpapers** need the WebP codec. It's built into Windows 11; on Windows 10 it comes with
+  the "WebP Image Extensions" Store package. The error message says so if it's missing.
 
 ### Adding a new platform theming API
 
@@ -106,13 +151,20 @@ own checkbox in the Apply dialog.
 2. Teach `ThemeApplier` when to call it (it gates every step on the backend's capabilities and on
    the user's Apply options), and extend `DesktopSnapshot` if the setting should be restorable.
 3. Implement it in the platform backend (`Platform.Windows`, or the macOS app's equivalent) and
-   report the capability.
-4. Add a `ThemeApplier` test using the fake backend.
+   report the capability. On Windows, add any registry values it writes to
+   `WindowsDesktopBackend.TrackedValues` so they're snapshotted and restored automatically. Put
+   new Win32/COM entry points in `NativeMethods.txt` (CsWin32 generates the bindings).
+4. Add a checkbox to the Apply dialog and a toggle in Settings (`ApplyOptions` in Core).
+5. Add tests: a `ThemeApplier` test with the fake backend, and a `WindowsDesktopBackendTests`
+   case asserting exactly which values are written.
 
 ## Tests
 
-`dotnet test` in `windows/` runs the Core suite. No OS state is touched and nothing hits the
-network:
+`dotnet test` in `windows/` runs both suites. No OS state is touched and nothing hits the network.
+
+**Core (`OmarchyThemes.Core.Tests`)**
+
+
 
 | Area | Covered |
 |---|---|
@@ -124,5 +176,19 @@ network:
 | Store | atomic install (no partial theme on failure/cancel), reinstall, remove, settings round-trip |
 | `ThemeApplier` (fake backend) | snapshot-before-first-apply, abort if snapshot fails, per-step user/capability/data gating, partial failure, restore |
 | Accent math | ABGR/ARGB packing, 7-shade palette, `AccentPalette` bytes, normalizing unusable accents |
+| Apply summaries | success, partial failure, total failure, snapshot failure and all-skipped messages |
+
+**Windows backend (`OmarchyThemes.Platform.Windows.Tests`)**, run against in-memory registry,
+wallpaper and broadcast fakes:
+
+| Area | Covered |
+|---|---|
+| Light/dark | both `Personalize` values + `ImmersiveColorSet` broadcast |
+| Accent | exact DWM/Explorer values and byte layout, `AutoColorization=0`, near-black accents lifted, nothing written outside `TrackedValues` |
+| Wallpaper | conversion before setting, fit passed through |
+| Snapshot/restore | registry values restored and previously-absent values deleted, per-monitor wallpapers, falling back to the private copy when the original file is gone, JSON round-trip |
+| WIC conversion | real Windows Imaging Component on temp files: PNG output, reuse, actionable error for unreadable images |
 
 Fixtures are hand-written to mirror the real page and theme repos rather than copied from them.
+During development, Core was also run against the live site (all 146 themes parsed; sample themes
+covering every palette format resolved), and the backend's read path against a real desktop.

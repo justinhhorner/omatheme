@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
+using OmarchyThemes.App.Services;
 
 namespace OmarchyThemes.App.Views;
 
@@ -15,17 +16,26 @@ public sealed partial class ShellPage : Page
         ["Settings"] = typeof(SettingsPage),
     };
 
+    private readonly NavigationService _navigation = App.GetService<NavigationService>();
+
     public ShellPage()
     {
         InitializeComponent();
+        _navigation.Attach(ContentFrame);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
 
     private TitleBar? TitleBar => App.Current.MainWindow?.TitleBar;
 
+    private void OnSectionRequested(object? sender, string tag) =>
+        NavView.SelectedItem = NavView.MenuItems.Concat(NavView.FooterMenuItems)
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(i => (string)i.Tag == tag);
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _navigation.SectionRequested += OnSectionRequested;
         if (TitleBar is { } titleBar)
         {
             titleBar.IsPaneToggleButtonVisible = true;
@@ -39,6 +49,7 @@ public sealed partial class ShellPage : Page
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        _navigation.SectionRequested -= OnSectionRequested;
         if (TitleBar is { } titleBar)
         {
             titleBar.IsPaneToggleButtonVisible = false;

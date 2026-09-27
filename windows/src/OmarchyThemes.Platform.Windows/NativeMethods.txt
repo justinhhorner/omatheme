@@ -5,6 +5,7 @@ IDesktopWallpaper
 DESKTOP_WALLPAPER_POSITION
 SystemParametersInfo
 SYSTEM_PARAMETERS_INFO_ACTION
+CoTaskMemFree
 // Settings-change broadcast after light/dark + accent registry writes
 SendMessageTimeout
 HWND_BROADCAST

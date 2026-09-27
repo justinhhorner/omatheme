@@ -5,13 +5,207 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="Transparent">
 
+    <Page.Resources>
+        <!-- Icon | header + description | control, like a Settings app card. -->
+        <Style x:Key="RowIconStyle" TargetType="FontIcon">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="Margin" Value="4,0,16,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="RowDescriptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Page.Resources>
+
     <ScrollViewer>
-        <StackPanel MaxWidth="{StaticResource PageMaxWidth}" Margin="{StaticResource PageMargin}" Spacing="12">
-            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Settings" />
+        <StackPanel MaxWidth="1000" Margin="{StaticResource PageMargin}">
+            <TextBlock Margin="0,0,0,8" Style="{StaticResource PageTitleTextStyle}" Text="Settings" />
 
-            <!-- Apply options, restore-original-desktop and cache management come with the feature work. -->
+            <InfoBar
+                Margin="0,8,0,0"
+                IsOpen="{x:Bind ViewModel.IsResultOpen, Mode=TwoWay}"
+                Message="{x:Bind ViewModel.ResultMessage, Mode=OneWay}"
+                Severity="{x:Bind ViewModel.ResultSeverity, Mode=OneWay}"
+                Title="{x:Bind ViewModel.ResultTitle, Mode=OneWay}" />
 
-            <Button Click="ShowWelcome_Click" Content="Show welcome screen" />
+            <TextBlock Style="{StaticResource SectionHeaderTextStyle}" Text="One-click apply" />
+            <TextBlock
+                Margin="1,0,0,8"
+                Style="{StaticResource SecondaryTextStyle}"
+                Text="What &#8220;Set as desktop theme&#8221; changes. The Apply dialog starts with these choices too." />
+
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE91B;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Wallpaper" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="Set the theme's wallpaper on every monitor." />
+                    </StackPanel>
+                    <StackPanel
+                        Grid.Column="2"
+                        Orientation="Horizontal"
+                        Spacing="12">
+                        <ComboBox
+                            x:Name="FitCombo"
+                            MinWidth="120"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="Wallpaper fit"
+                            IsEnabled="{x:Bind ViewModel.ApplyWallpaper, Mode=OneWay}"
+                            SelectionChanged="FitCombo_SelectionChanged" />
+                        <ToggleSwitch
+                            MinWidth="0"
+                            AutomationProperties.Name="Apply wallpaper"
+                            IsOn="{x:Bind ViewModel.ApplyWallpaper, Mode=TwoWay}"
+                            OffContent=""
+                            OnContent="" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE793;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Light or dark mode" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="Switch Windows and apps to match the theme." />
+                    </StackPanel>
+                    <ToggleSwitch
+                        Grid.Column="2"
+                        MinWidth="0"
+                        AutomationProperties.Name="Apply light or dark mode"
+                        IsOn="{x:Bind ViewModel.ApplyMode, Mode=TwoWay}"
+                        OffContent=""
+                        OnContent="" />
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE790;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Accent color" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="Use the theme's accent color. Windows has no official API for this, so some parts of Windows may only update after you sign out." />
+                    </StackPanel>
+                    <ToggleSwitch
+                        Grid.Column="2"
+                        MinWidth="0"
+                        AutomationProperties.Name="Apply accent color"
+                        IsOn="{x:Bind ViewModel.ApplyAccent, Mode=TwoWay}"
+                        OffContent=""
+                        OnContent="" />
+                </Grid>
+            </Border>
+
+            <TextBlock Style="{StaticResource SectionHeaderTextStyle}" Text="Your original desktop" />
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE777;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Restore my original desktop" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="{x:Bind ViewModel.RestoreDescription, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button
+                        Grid.Column="2"
+                        Margin="12,0,0,0"
+                        Command="{x:Bind ViewModel.RestoreOriginalCommand}"
+                        Content="Restore" />
+                </Grid>
+            </Border>
+
+            <TextBlock Style="{StaticResource SectionHeaderTextStyle}" Text="Storage" />
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE8B7;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Downloaded themes" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="{x:Bind ViewModel.StorageText, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button
+                        Grid.Column="2"
+                        Margin="12,0,0,0"
+                        Command="{x:Bind ViewModel.OpenDataFolderCommand}"
+                        Content="Open folder" />
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE74D;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Cache" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="{x:Bind ViewModel.CacheText, Mode=OneWay}" />
+                    </StackPanel>
+                    <Button
+                        Grid.Column="2"
+                        Margin="12,0,0,0"
+                        Command="{x:Bind ViewModel.ClearCacheCommand}"
+                        Content="Clear cache" />
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE774;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="GitHub access" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="{x:Bind ViewModel.GitHubText}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <TextBlock Style="{StaticResource SectionHeaderTextStyle}" Text="About" />
+            <Border Style="{StaticResource SettingsRowStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE8BC;" Style="{StaticResource RowIconStyle}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Welcome screen" />
+                        <TextBlock Style="{StaticResource RowDescriptionStyle}" Text="See the introduction to Omarchy Themes again." />
+                    </StackPanel>
+                    <Button
+                        Grid.Column="2"
+                        Margin="12,0,0,0"
+                        Click="ShowWelcome_Click"
+                        Content="Show welcome" />
+                </Grid>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>

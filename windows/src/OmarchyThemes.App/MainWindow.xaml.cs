@@ -9,7 +9,7 @@ namespace OmarchyThemes.App;
 
 public sealed partial class MainWindow : Window
 {
-    public MainWindow()
+    public MainWindow(bool showWelcome)
     {
         InitializeComponent();
 
@@ -24,7 +24,7 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = 540;
         }
 
-        RootFrame.Navigate(typeof(WelcomePage));
+        RootFrame.Navigate(showWelcome ? typeof(WelcomePage) : typeof(ShellPage));
     }
 
     public TitleBar TitleBar => AppTitleBar;

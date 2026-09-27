@@ -17,4 +17,8 @@
     <ProjectReference Include="..\OmarchyThemes.Core\OmarchyThemes.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="OmarchyThemes.Platform.Windows.Tests" />
+  </ItemGroup>
+
 </Project>

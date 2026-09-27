@@ -3,20 +3,159 @@
     x:Class="OmarchyThemes.App.Views.DownloadedPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:h="using:OmarchyThemes.App.Helpers"
+    xmlns:vm="using:OmarchyThemes.App.ViewModels"
     Background="Transparent">
 
-    <Grid Margin="{StaticResource PageMargin}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Grid>
+        <ScrollViewer Visibility="{x:Bind h:Ui.Collapsed(ViewModel.IsEmpty), Mode=OneWay}">
+            <StackPanel MaxWidth="{StaticResource PageMaxWidth}" Margin="{StaticResource PageMargin}" Spacing="8">
+                <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Downloaded" />
+                <TextBlock
+                    Margin="0,0,0,8"
+                    Style="{StaticResource SecondaryTextStyle}"
+                    Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" />
 
-        <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Downloaded" />
+                <InfoBar
+                    IsOpen="{x:Bind ViewModel.IsResultOpen, Mode=TwoWay}"
+                    Message="{x:Bind ViewModel.ResultMessage, Mode=OneWay}"
+                    Severity="{x:Bind ViewModel.ResultSeverity, Mode=OneWay}"
+                    Title="{x:Bind ViewModel.ResultTitle, Mode=OneWay}" />
 
-        <!-- Placeholder until the feature is implemented. -->
-        <TextBlock
-            Grid.Row="1"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-            Text="Themes you download will be available here, even offline." />
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Items}">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="8" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:InstalledThemeViewModel">
+                            <Border Padding="12" Style="{StaticResource CardStyle}">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border
+                                        Width="160"
+                                        Height="90"
+                                        Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+                                        CornerRadius="4">
+                                        <Image Source="{x:Bind Screenshot}" Stretch="UniformToFill" />
+                                    </Border>
+
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock
+                                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                Text="{x:Bind Name}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <Border Style="{StaticResource AccentBadgeStyle}" Visibility="{x:Bind IsActive, Mode=OneWay}">
+                                                <TextBlock
+                                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                                    Text="Current" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{StaticResource CaptionTextBlockStyle}">
+                                            <Run Text="{x:Bind ModeText}" /><Run Text=" · " /><Run Text="{x:Bind Details}" />
+                                        </TextBlock>
+                                        <ItemsRepeater ItemsSource="{x:Bind Colors}">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Orientation="Horizontal" Spacing="4" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ColorChipViewModel">
+                                                    <Border
+                                                        Width="18"
+                                                        Height="18"
+                                                        Background="{x:Bind Brush}"
+                                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        ToolTipService.ToolTip="{x:Bind Tooltip}" />
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                    </StackPanel>
+
+                                    <StackPanel
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Spacing="8">
+                                        <Button
+                                            AutomationProperties.Name="Set as desktop theme"
+                                            Click="SetAsDesktop_Click"
+                                            IsEnabled="{x:Bind h:Ui.Not(IsApplying), Mode=OneWay}"
+                                            Style="{StaticResource AccentButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <ProgressRing
+                                                    Width="16"
+                                                    Height="16"
+                                                    IsActive="{x:Bind IsApplying, Mode=OneWay}"
+                                                    Visibility="{x:Bind IsApplying, Mode=OneWay}" />
+                                                <TextBlock Text="Set as desktop theme" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button AutomationProperties.Name="More options" ToolTipService.ToolTip="More options">
+                                            <FontIcon FontSize="16" Glyph="&#xE712;" />
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuFlyoutItem Click="ApplyWithOptions_Click" Text="Apply with options…">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE790;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutItem Click="Open_Click" Text="View details">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE8A7;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutSeparator />
+                                                    <MenuFlyoutItem Click="Remove_Click" Text="Remove">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE74D;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Empty state -->
+        <Grid Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
+            <TextBlock
+                Margin="{StaticResource PageMargin}"
+                VerticalAlignment="Top"
+                Style="{StaticResource PageTitleTextStyle}"
+                Text="Downloaded" />
+            <StackPanel Style="{StaticResource EmptyStatePanelStyle}">
+                <FontIcon Glyph="&#xE896;" Style="{StaticResource EmptyStateIconStyle}" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    Text="No downloaded themes yet" />
+                <TextBlock
+                    Style="{StaticResource SecondaryTextStyle}"
+                    Text="Download a theme from the gallery and it will be ready to apply any time, even offline."
+                    TextAlignment="Center" />
+                <Button
+                    HorizontalAlignment="Center"
+                    Command="{x:Bind ViewModel.BrowseThemesCommand}"
+                    Content="Browse themes"
+                    Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>
