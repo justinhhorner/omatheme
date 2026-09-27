@@ -285,20 +285,17 @@
                         SelectionMode="Single">
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="vm:WallpaperItemViewModel">
+                                <!-- Image only; the file name is in the tooltip, the automation name and the large preview. -->
                                 <Grid
                                     Width="208"
+                                    Height="117"
                                     AutomationProperties.Name="{x:Bind FileName}"
                                     Background="Transparent"
                                     DoubleTapped="WallpaperItem_DoubleTapped"
                                     Tag="{x:Bind}"
                                     PointerEntered="WallpaperItem_PointerEntered"
                                     PointerExited="WallpaperItem_PointerExited"
-                                    RowSpacing="4"
                                     ToolTipService.ToolTip="{x:Bind FileName}">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="117" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
                                     <Grid.ContextFlyout>
                                         <MenuFlyout>
                                             <MenuFlyoutItem Click="PreviewMenu_Click" Tag="{x:Bind}" Text="Preview">
@@ -329,13 +326,6 @@
                                         ToolTipService.ToolTip="Preview">
                                         <FontIcon FontSize="14" Glyph="&#xE740;" />
                                     </Button>
-                                    <TextBlock
-                                        Grid.Row="1"
-                                        Margin="2,0"
-                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Style="{StaticResource CaptionTextBlockStyle}"
-                                        Text="{x:Bind FileName}"
-                                        TextTrimming="CharacterEllipsis" />
                                 </Grid>
                             </DataTemplate>
                         </GridView.ItemTemplate>

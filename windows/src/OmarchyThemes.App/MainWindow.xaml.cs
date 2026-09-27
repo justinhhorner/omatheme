@@ -16,7 +16,9 @@ public sealed partial class MainWindow : Window
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
-        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
+        // Caption buttons must match the TitleBar control's height (32px). "Tall" (48px) buttons make
+        // their hover highlight hang below the title bar into the page.
+        AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Standard;
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         AppWindow.Resize(new SizeInt32(1280, 840));
         if (AppWindow.Presenter is OverlappedPresenter presenter)
