@@ -11,7 +11,7 @@ affiliated with Omarchy or 37signals; every theme belongs to its author.
 | Platform | Stack | Status |
 |---|---|---|
 | Windows 10 (19041+) / 11 | WinUI 3 · Windows App SDK 2.5 · .NET 10 | Working v0.1 (`windows/`) |
-| macOS | SwiftUI (separate native app) | Planned (`macos/`) |
+| macOS 14+ | SwiftUI · Swift 6 · XcodeGen | Working v0.1 (`macos/`) |
 
 Each platform is its own native codebase so it can follow that OS's conventions (Mica + Fluent
 `NavigationView` on Windows; sidebar, vibrancy and traffic lights on macOS) and call the real
@@ -31,7 +31,16 @@ windows/
   tests/OmarchyThemes.Core.Tests/  xUnit, platform-neutral
   tests/OmarchyThemes.Platform.Windows.Tests/  xUnit, Windows backend against fake registry/COM
   tools/Generate-AppIcon.ps1       renders Assets/AppIcon.png + .ico
-macos/                             (later)
+macos/
+  project.yml                      XcodeGen spec (the .xcodeproj is generated, not committed)
+  App/                             SwiftUI app target
+  OmarchyThemesKit/                Swift package
+    Sources/OmarchyThemesKit/      no AppKit: catalog, GitHub, palettes, store, ThemeApplier
+    Sources/OmarchyThemesMac/      DesktopBackend for macOS (NSWorkspace + ImageIO)
+    Tests/                         Swift Testing, platform-neutral + backend against a fake
+  tools/generate-app-icon.swift    renders the asset-catalog icon set from design/AppIcon.svg
+fixtures/                          test fixtures shared by the Windows and Swift tests
+docs/macos-to-windows.md           macOS features still to bring to the Windows app
 ```
 
 ## Building on Windows
@@ -50,6 +59,80 @@ dotnet test
 
 The app project defaults to the host architecture; pass `-p:Platform=ARM64` (or `x64`) to
 cross-build.
+
+## Building on macOS
+
+Requirements: macOS 14+, Xcode 16 or later (Swift 6), and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+(`brew install xcodegen`). SwiftSoup (HTML parsing) is the only package dependency and is fetched by SwiftPM.
+
+```bash
+cd macos
+xcodegen                              # generates OmarchyThemes.xcodeproj
+open OmarchyThemes.xcodeproj          # or build from the command line:
+xcodebuild -scheme OmarchyThemes -derivedDataPath build/DerivedData build
+xcodebuild -scheme OmarchyThemes -derivedDataPath build/DerivedData test
+
+cd OmarchyThemesKit && swift test     # the package alone, no Xcode project needed
+```
+
+The app isn't sandboxed (it has to copy your current wallpaper from wherever it lives before the
+first Apply) and is built with the hardened runtime for Developer ID distribution. Debug builds are
+signed ad hoc.
+
+Two environment variables help when testing the app:
+
+| Variable | Effect |
+|---|---|
+| `OMARCHY_THEMES_DRY_RUN=1` | Swaps in a backend that changes nothing, so Apply and Restore can be exercised without touching the desktop. The window shows a "Dry run" badge. |
+| `OMARCHY_THEMES_DATA_DIR=<path>` | Uses another data folder instead of `~/Library/Application Support/OmarchyThemes` (e.g. a fresh first launch). |
+
+`GITHUB_TOKEN` (or `OMARCHY_THEMES_GITHUB_TOKEN`) raises the GitHub rate limit, as on Windows. Apps
+started from the Finder don't inherit your shell's environment, so set it with `launchctl setenv` or
+run the app binary from a terminal.
+
+## Architecture (macOS)
+
+The macOS app is its own SwiftUI codebase following macOS conventions: a `NavigationSplitView`
+sidebar (Gallery, Downloaded) with drill-in detail pages, a unified toolbar with search and refresh
+(⌘R), a `Settings` window (⌘,), the standard About panel with credits, and "Show Welcome Screen"
+in the Help menu.
+
+- **OmarchyThemesKit** ports Core's behaviour (not its code) and has no AppKit: the catalog
+  parser (SwiftSoup instead of AngleSharp), the ETag HTTP cache over a small `HTTPTransport`
+  protocol (URLSession in the app, a routing fake in tests), the GitHub client, the palette parsers
+  (a strict TOML reader for the subset palette files use, with the same lenient line-scanner
+  fallback), `ThemeResolver`, `ThemeStore`, `ThemeApplier` and `ApplySummary`.
+- **OmarchyThemesMac** implements `DesktopBackend` (`MacDesktopBackend`) behind a `WallpaperAPI`
+  protocol, so it's tested without changing the desktop.
+- **App** holds an `@Observable` `AppModel` (services, catalog state, downloads that carry on
+  when you navigate away) and the views.
+
+Local data lives in `~/Library/Application Support/OmarchyThemes`, with the same layout as on
+Windows (`cache/`, `themes/<slug>/`, `settings.json`, `original-desktop.json`,
+`original-desktop/`). Screenshot and wallpaper thumbnails are cached in `cache/images/`.
+
+### Applying a theme on macOS
+
+| Aspect | Mechanism |
+|---|---|
+| Wallpaper | `NSWorkspace.setDesktopImageURL(_:for:options:)` for every `NSScreen`. Fill, Fit, Stretch and Center map to `imageScaling` + `allowClipping`; the theme's background color is passed as `fillColor` for the area around the image. WebP and BMP wallpapers are converted to PNG with ImageIO first (into a hidden `.converted` folder next to the file), because it's undocumented whether the desktop displays them. |
+| Light / dark | Not supported: macOS has no public API for an app to change the system appearance. The Apply sheet shows it disabled, with a link to Appearance settings. |
+| Accent color | Not supported, for the same reason. |
+
+Safety is the same as on Windows. Nothing changes on launch, and nothing changes until you apply a
+theme. Before the first Apply, each screen's desktop picture and options are saved, along with a
+private copy of each picture (except the built-in ones under `/System`, which are always there).
+**Restore my original desktop** in Settings puts them back, falling back to the private copy if the
+original file is gone. A display connected after the snapshot gets the main display's picture. If
+the snapshot can't be taken, nothing is applied.
+
+Known limitations:
+
+- `setDesktopImageURL` changes the **current Space** on each display, not every Space.
+- Dynamic and Aerial (video) wallpapers are restored as the picture file the system reports, which
+  may be a still image.
+- Removing a downloaded theme deletes its wallpapers, including the one on your desktop; the
+  confirmation says so.
 
 ## Architecture (Windows)
 
@@ -98,6 +181,19 @@ and entries without a GitHub link are skipped. The raw page (not the parsed resu
 the app starts instantly and offline, and a parser fix applies to the cached copy too. If the page
 ever yields zero themes, the app says the layout may have changed instead of showing an empty
 gallery.
+
+### Omarchy's default themes
+
+The themes that ship with Omarchy (Tokyo Night, Catppuccin, Gruvbox and the rest) aren't on
+omarchy.org/themes; they live in the `themes/` folder of
+[omacom/omarchy](https://github.com/omacom/omarchy/tree/quattro/themes). Both apps list them first
+in the gallery, "Included with Omarchy". They come from one cached call for the repo's file tree
+(`HEAD`, currently the `quattro` branch), which also serves every default theme's palette and
+wallpapers, so opening one costs no extra API request. Names follow Omarchy's own
+`omarchy-theme-list` (folder `retro-82` → "Retro 82"), the screenshot is each theme's
+`preview.png`, and slugs are `omarchy.<folder>` so they can never collide with community themes.
+If GitHub can't be reached (or is rate-limited) with nothing cached, the community gallery still
+loads without them. On macOS the gallery says so; on Windows they're left out until the next refresh.
 
 ### Theme resolution (GitHub)
 
@@ -169,6 +265,7 @@ Known limitations:
 | Area | Covered |
 |---|---|
 | Catalog parser | live `li > a > img + span` markup, `<figure>` layout, relative screenshots, skipping nav/non-GitHub/duplicate cards, unique slugs |
+| Default themes | folders under `themes/` only, Omarchy naming, `preview.png` screenshots, listed first, community-only fallback when GitHub fails, offline from cache, one shared tree call for listing and resolving |
 | Repo links | `.git`, trailing slashes, `/tree/<ref>/<subdir>`, rejecting `/compare`, `/issues`, non-GitHub hosts, path traversal |
 | Palettes | both `colors.toml` shapes, `alacritty.toml`, accent/mode fallbacks, lenient parsing of invalid TOML |
 | HTTP cache / GitHub | ETag 304 revalidation, max-age, stale-when-offline, rate-limit reset time, 404, token sent only to the API |
@@ -192,3 +289,27 @@ wallpaper and broadcast fakes:
 Fixtures are hand-written to mirror the real page and theme repos rather than copied from them.
 During development, Core was also run against the live site (all 146 themes parsed; sample themes
 covering every palette format resolved), and the backend's read path against a real desktop.
+
+### macOS tests
+
+`swift test` in `macos/OmarchyThemesKit` (or `xcodebuild … test`) runs both Swift Testing suites.
+They use the same `fixtures/` as the Windows tests, touch no OS state and make no network requests.
+
+**Kit (`OmarchyThemesKitTests`)** mirrors the Core suite above (catalog parser, repo links,
+palettes, HTTP cache and GitHub client, theme resolution, store and settings, `ThemeApplier`,
+apply summaries). It also covers the strict TOML reader (inline tables, quoted and dotted keys,
+escapes, multi-line strings, arrays) and checks that concurrent applies never interleave.
+
+**macOS backend (`OmarchyThemesMacTests`)**, against an in-memory `WallpaperAPI`:
+
+| Area | Covered |
+|---|---|
+| Wallpaper | every screen set, fit → `imageScaling`/`allowClipping`, fill color, WebP converted before setting |
+| Snapshot/restore | per-screen picture and options, one private copy per file, system pictures not copied, falling back to the copy when the original is gone, a display connected later, failure only when every screen fails |
+| Capabilities | wallpaper only; through `ThemeApplier`, light/dark and accent report "not supported" |
+| ImageIO conversion | real ImageIO on temp files: WebP decoding, BMP → PNG, reuse, actionable error for unreadable images |
+
+`OMATHEME_LIVE=1 swift test --filter LiveChecks` runs opt-in, read-only checks against the
+live site, a few theme repos and this Mac's current desktop. During development they parsed all 146
+themes, resolved Aetheria and Vulkanite (WebP wallpapers, decoded and converted to a 3840×2160 PNG),
+and checked the downloader's byte-level progress.
