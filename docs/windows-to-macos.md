@@ -87,3 +87,10 @@ user's config (decide on the Mac, and check what's installed):
 - Terminal.app needs a `.terminal` profile with archived `NSColor`s: more work, lower value.
 
 Put it on the theme page with add/remove and the same "restart the terminal to see it" guidance.
+
+## 4. A macOS screenshot in the README
+
+The README now opens with the app icon, centered, and a screenshot of the Windows gallery
+(`docs/screenshots/windows-gallery.png`). Add a macOS one (`docs/screenshots/macos-gallery.png`, the gallery
+with the Current theme section, dark mode, taken from the normal app rather than a dry run so no badge shows)
+and show both, e.g. side by side in a two-cell table or one under the other with captions.
