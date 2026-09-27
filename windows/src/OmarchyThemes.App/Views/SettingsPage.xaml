@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="OmarchyThemes.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <ScrollViewer>
+        <StackPanel MaxWidth="{StaticResource PageMaxWidth}" Margin="{StaticResource PageMargin}" Spacing="12">
+            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Settings" />
+
+            <!-- Apply options, restore-original-desktop and cache management come with the feature work. -->
+
+            <Button Click="ShowWelcome_Click" Content="Show welcome screen" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

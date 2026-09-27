@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="OmarchyThemes.App.Views.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <ScrollViewer>
+        <StackPanel MaxWidth="{StaticResource PageMaxWidth}" Margin="{StaticResource PageMargin}" Spacing="12">
+            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="About" />
+
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <Image Width="64" Height="64" Source="ms-appx:///Assets/AppIcon.png" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Omarchy Themes" />
+                    <TextBlock x:Name="VersionText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock MaxWidth="640" HorizontalAlignment="Left" TextWrapping="Wrap">
+                The themes in this app come from the Omarchy community theme gallery. Omarchy is an
+                opinionated Linux (Arch + Hyprland) setup by DHH and the Omarchy contributors. This app is
+                an independent companion that re-applies each theme's wallpaper and colors on Windows.
+                Each theme belongs to its author and is fetched from its own GitHub repository.
+            </TextBlock>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <HyperlinkButton Content="omarchy.org" NavigateUri="https://omarchy.org" />
+                <HyperlinkButton Content="Omarchy themes" NavigateUri="https://omarchy.org/themes/" />
+                <HyperlinkButton Content="basecamp/omarchy on GitHub" NavigateUri="https://github.com/basecamp/omarchy" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

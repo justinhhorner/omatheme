@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Platform-neutral logic: catalog parsing, GitHub resolution, palettes, local store,
+       and the theme-application layer (against the IDesktopBackend abstraction).
+       No Windows dependencies so it is fully unit-testable. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>OmarchyThemes.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AngleSharp" />
+    <PackageReference Include="Tomlyn" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OmarchyThemes.Core.Tests" />
+  </ItemGroup>
+
+</Project>
