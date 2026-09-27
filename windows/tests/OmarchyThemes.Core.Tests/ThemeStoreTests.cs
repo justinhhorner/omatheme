@@ -168,6 +168,40 @@ public sealed class ThemeStoreTests : IDisposable
         Assert.Equal(new AppSettings().WelcomeSeen, settings.Load().WelcomeSeen);
     }
 
+    private static ApplyResult Result(StepOutcome wallpaper, StepOutcome mode = StepOutcome.Applied) =>
+        new([new StepResult(ApplyStep.Wallpaper, wallpaper), new StepResult(ApplyStep.AppearanceMode, mode)]);
+
+    [Fact]
+    public void Applying_records_the_theme_and_the_wallpaper_that_was_set()
+    {
+        var after = new AppSettings().AfterApply("tokyo", "2.png", Result(StepOutcome.Applied));
+
+        Assert.Equal("tokyo", after.LastAppliedSlug);
+        Assert.Equal("2.png", after.LastAppliedWallpaper);
+    }
+
+    [Fact]
+    public void Applying_without_the_wallpaper_does_not_claim_its_wallpaper_is_on_the_desktop()
+    {
+        var before = new AppSettings { LastAppliedSlug = "tokyo", LastAppliedWallpaper = "2.png" };
+
+        // Same theme, wallpaper unchecked: the desktop still shows 2.png.
+        Assert.Equal("2.png", before.AfterApply("tokyo", "1.png", Result(StepOutcome.SkippedByUser)).LastAppliedWallpaper);
+
+        // Another theme, wallpaper unchecked or failed: none of its wallpapers is on the desktop.
+        var other = before.AfterApply("snow", "1.png", Result(StepOutcome.Failed));
+        Assert.Equal("snow", other.LastAppliedSlug);
+        Assert.Null(other.LastAppliedWallpaper);
+    }
+
+    [Fact]
+    public void Applying_nothing_changes_nothing()
+    {
+        var before = new AppSettings { LastAppliedSlug = "tokyo", LastAppliedWallpaper = "2.png" };
+
+        Assert.Same(before, before.AfterApply("snow", "1.png", Result(StepOutcome.Failed, StepOutcome.Failed)));
+    }
+
     private sealed class SyncCollector(List<DownloadProgress> into) : IProgress<DownloadProgress>
     {
         public void Report(DownloadProgress value) => into.Add(value);

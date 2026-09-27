@@ -22,6 +22,14 @@ public sealed partial class GalleryPage : Page
         await ViewModel.EnsureLoadedAsync();
     }
 
+    private async void CurrentWallpaper_Click(object sender, RoutedEventArgs e)
+    {
+        if (Ui.ItemOf<CurrentWallpaperViewModel>(sender) is { } wallpaper && ViewModel.CurrentTheme is { } current)
+            await current.SetWallpaperAsync(wallpaper);
+    }
+
+    private void ViewCurrentTheme_Click(object sender, RoutedEventArgs e) => ViewModel.OpenCurrentTheme();
+
     private void Card_Click(object sender, RoutedEventArgs e)
     {
         if (Ui.ItemOf<ThemeCardViewModel>(sender) is { } card)

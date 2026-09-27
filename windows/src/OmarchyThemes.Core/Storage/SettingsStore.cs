@@ -10,8 +10,30 @@ public sealed record AppSettings
     /// <summary>Defaults for the Apply dialog's per-aspect checkboxes.</summary>
     public ApplyOptions ApplyDefaults { get; init; } = new();
 
+    /// <summary>The theme on the desktop (the last one applied), or null.</summary>
     public string? LastAppliedSlug { get; init; }
+
+    /// <summary>Which of that theme's wallpapers is on the desktop, or null if none of them is.</summary>
     public string? LastAppliedWallpaper { get; init; }
+
+    /// <summary>
+    /// The settings after applying <paramref name="slug"/>. The theme becomes current if any step
+    /// applied; its wallpaper only if the wallpaper step itself applied (with the wallpaper unchecked,
+    /// or failing, the desktop keeps showing whatever it showed before).
+    /// </summary>
+    public AppSettings AfterApply(string slug, string? wallpaperFile, ApplyResult result)
+    {
+        if (!result.AnyApplied)
+            return this;
+        var wallpaperApplied = result.For(ApplyStep.Wallpaper)?.Outcome == StepOutcome.Applied;
+        return this with
+        {
+            LastAppliedSlug = slug,
+            LastAppliedWallpaper = wallpaperApplied ? wallpaperFile
+                : LastAppliedSlug == slug ? LastAppliedWallpaper
+                : null,
+        };
+    }
 }
 
 public sealed class SettingsStore(AppPaths paths)

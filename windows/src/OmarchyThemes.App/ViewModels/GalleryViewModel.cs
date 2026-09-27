@@ -21,6 +21,7 @@ public sealed partial class GalleryViewModel : ObservableObject
     private readonly CatalogService _catalog;
     private readonly ThemeStore _store;
     private readonly ApplyService _apply;
+    private readonly SettingsStore _settings;
     private readonly NavigationService _navigation;
     private readonly DispatcherQueue _dispatcher;
     private readonly ILogger<GalleryViewModel> _log;
@@ -28,8 +29,11 @@ public sealed partial class GalleryViewModel : ObservableObject
     private DateTimeOffset? _fetchedAt;
     private bool _loaded;
 
-    public GalleryViewModel(CatalogService catalog, ThemeStore store, ApplyService apply, NavigationService navigation, ILogger<GalleryViewModel> log)
+    public GalleryViewModel(
+        CatalogService catalog, ThemeStore store, ApplyService apply, SettingsStore settings,
+        NavigationService navigation, ILogger<GalleryViewModel> log)
     {
+        _settings = settings;
         _log = log;
         _catalog = catalog;
         _store = store;
@@ -61,6 +65,33 @@ public sealed partial class GalleryViewModel : ObservableObject
 
     public bool HasDefaultSection => DefaultThemes.Count > 0;
     public bool HasCommunitySection => CommunityThemes.Count > 0;
+
+    /// <summary>The theme on the desktop, if it's still downloaded ("Current theme" section).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowCurrentTheme))]
+    public partial CurrentThemeViewModel? CurrentTheme { get; set; }
+
+    /// <summary>Hidden while searching, so results come first.</summary>
+    public bool ShowCurrentTheme => CurrentTheme is not null && string.IsNullOrWhiteSpace(SearchText);
+
+    public void OpenCurrentTheme()
+    {
+        if (CurrentTheme?.Theme is not { } theme)
+            return;
+        _navigation.OpenTheme(Find(theme.Slug) ?? new CatalogEntry(theme.Slug, theme.Name, theme.RepoUrl, ScreenshotUrl: null));
+    }
+
+    private void UpdateCurrentTheme()
+    {
+        var settings = _settings.Load();
+        var theme = settings.LastAppliedSlug is { } slug ? _store.Get(slug) : null;
+        if (theme is null)
+            CurrentTheme = null;
+        else if (CurrentTheme?.Theme is { } shown && shown.Slug == theme.Slug && shown.DownloadedAt == theme.DownloadedAt)
+            CurrentTheme.MarkCurrent(settings.LastAppliedWallpaper); // same theme: just move the "current" mark
+        else
+            CurrentTheme = new CurrentThemeViewModel(theme, settings.LastAppliedWallpaper, _apply, _settings);
+    }
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = "";
@@ -101,7 +132,11 @@ public sealed partial class GalleryViewModel : ObservableObject
         ? "You haven't downloaded any themes yet."
         : $"No themes match “{SearchText.Trim()}”.";
 
-    partial void OnSearchTextChanged(string value) => ApplyFilter();
+    partial void OnSearchTextChanged(string value)
+    {
+        ApplyFilter();
+        OnPropertyChanged(nameof(ShowCurrentTheme));
+    }
 
     partial void OnShowDownloadedOnlyChanged(bool value) => ApplyFilter();
 
@@ -110,6 +145,9 @@ public sealed partial class GalleryViewModel : ObservableObject
         if (_loaded)
             return;
         _loaded = true;
+
+        // Local only, so it shows even when the catalog can't load.
+        UpdateCurrentTheme();
 
         if (_catalog.LoadCached() is { } cached)
         {
@@ -206,6 +244,7 @@ public sealed partial class GalleryViewModel : ObservableObject
         }
         if (ShowDownloadedOnly)
             ApplyFilter();
+        UpdateCurrentTheme();
     }
 
     private void ApplyFilter()

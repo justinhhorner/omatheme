@@ -98,6 +98,7 @@
                         <Setter Target="HeaderActions.(Grid.Column)" Value="0" />
                         <Setter Target="HeaderActions.Margin" Value="0,12,0,0" />
                         <Setter Target="HeaderActions.HorizontalAlignment" Value="Stretch" />
+                        <Setter Target="CurrentScreenshot.Visibility" Value="Collapsed" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>
@@ -198,6 +199,153 @@
                 Padding="0,0,36,0"
                 Visibility="{x:Bind ViewModel.HasThemes, Mode=OneWay}">
                 <StackPanel Padding="0,0,0,36" XYFocusKeyboardNavigation="Enabled">
+                    <!-- The theme on the desktop, with one-click switching between its wallpapers. -->
+                    <StackPanel Margin="0,0,0,16" Visibility="{x:Bind ViewModel.ShowCurrentTheme, Mode=OneWay}">
+                        <TextBlock
+                            Margin="1,4,0,12"
+                            AutomationProperties.HeadingLevel="Level2"
+                            Style="{StaticResource SubtitleTextBlockStyle}"
+                            Text="Current theme" />
+                        <Border Style="{StaticResource CardStyle}">
+                            <Grid ColumnSpacing="20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border
+                                    x:Name="CurrentScreenshot"
+                                    Width="240"
+                                    Height="135"
+                                    VerticalAlignment="Top"
+                                    Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+                                    CornerRadius="6">
+                                    <Image Source="{x:Bind ViewModel.CurrentTheme.Screenshot, Mode=OneWay}" Stretch="UniformToFill" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" Spacing="12">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Spacing="6">
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <TextBlock
+                                                    Style="{StaticResource SubtitleTextBlockStyle}"
+                                                    Text="{x:Bind ViewModel.CurrentTheme.Name, Mode=OneWay}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <Border Style="{StaticResource AccentBadgeStyle}">
+                                                    <TextBlock
+                                                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                        Style="{StaticResource CaptionTextBlockStyle}"
+                                                        Text="On your desktop" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Text="{x:Bind ViewModel.CurrentTheme.Details, Mode=OneWay}" />
+                                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.CurrentTheme.Colors, Mode=OneWay}">
+                                                <ItemsRepeater.Layout>
+                                                    <StackLayout Orientation="Horizontal" Spacing="4" />
+                                                </ItemsRepeater.Layout>
+                                                <ItemsRepeater.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ColorChipViewModel">
+                                                        <Border
+                                                            Width="16"
+                                                            Height="16"
+                                                            Background="{x:Bind Brush}"
+                                                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4"
+                                                            ToolTipService.ToolTip="{x:Bind Tooltip}" />
+                                                    </DataTemplate>
+                                                </ItemsRepeater.ItemTemplate>
+                                            </ItemsRepeater>
+                                        </StackPanel>
+                                        <Button
+                                            Grid.Column="1"
+                                            VerticalAlignment="Top"
+                                            Click="ViewCurrentTheme_Click"
+                                            Content="View theme" />
+                                    </Grid>
+
+                                    <InfoBar
+                                        IsOpen="{x:Bind ViewModel.CurrentTheme.IsResultOpen, Mode=TwoWay}"
+                                        Message="{x:Bind ViewModel.CurrentTheme.ResultMessage, Mode=OneWay}"
+                                        Severity="{x:Bind ViewModel.CurrentTheme.ResultSeverity, Mode=OneWay}"
+                                        Title="{x:Bind ViewModel.CurrentTheme.ResultTitle, Mode=OneWay}" />
+
+                                    <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.CurrentTheme.HasWallpapers, Mode=OneWay}">
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            Text="Click a wallpaper to put it on your desktop." />
+                                        <ScrollViewer
+                                            HorizontalScrollBarVisibility="Auto"
+                                            HorizontalScrollMode="Enabled"
+                                            VerticalScrollBarVisibility="Disabled"
+                                            VerticalScrollMode="Disabled">
+                                            <ItemsRepeater Margin="0,0,0,12" ItemsSource="{x:Bind ViewModel.CurrentTheme.Wallpapers, Mode=OneWay}">
+                                                <ItemsRepeater.Layout>
+                                                    <StackLayout Orientation="Horizontal" Spacing="8" />
+                                                </ItemsRepeater.Layout>
+                                                <ItemsRepeater.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:CurrentWallpaperViewModel">
+                                                        <Button
+                                                            Width="160"
+                                                            Height="90"
+                                                            AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                                                            Click="CurrentWallpaper_Click"
+                                                            Style="{StaticResource ThemeCardButtonStyle}"
+                                                            Tag="{x:Bind}"
+                                                            ToolTipService.ToolTip="{x:Bind Tooltip, Mode=OneWay}">
+                                                            <Grid>
+                                                                <Border CornerRadius="7">
+                                                                    <Image Source="{x:Bind Thumbnail}" Stretch="UniformToFill" />
+                                                                </Border>
+                                                                <!-- The wallpaper on the desktop now: accent ring + check. -->
+                                                                <Border
+                                                                    BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                                                    BorderThickness="2"
+                                                                    CornerRadius="7"
+                                                                    Visibility="{x:Bind IsCurrent, Mode=OneWay}" />
+                                                                <Border
+                                                                    Width="22"
+                                                                    Height="22"
+                                                                    Margin="6"
+                                                                    HorizontalAlignment="Right"
+                                                                    VerticalAlignment="Bottom"
+                                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                                    CornerRadius="11"
+                                                                    Visibility="{x:Bind IsCurrent, Mode=OneWay}">
+                                                                    <FontIcon
+                                                                        FontSize="12"
+                                                                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                                        Glyph="&#xE73E;" />
+                                                                </Border>
+                                                                <Grid
+                                                                    Background="{ThemeResource SmokeFillColorDefaultBrush}"
+                                                                    CornerRadius="7"
+                                                                    Visibility="{x:Bind IsApplying, Mode=OneWay}">
+                                                                    <ProgressRing
+                                                                        Width="24"
+                                                                        Height="24"
+                                                                        IsActive="{x:Bind IsApplying, Mode=OneWay}" />
+                                                                </Grid>
+                                                            </Grid>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsRepeater.ItemTemplate>
+                                            </ItemsRepeater>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
                     <StackPanel Visibility="{x:Bind ViewModel.HasDefaultSection, Mode=OneWay}">
                         <StackPanel
                             Margin="1,4,0,12"

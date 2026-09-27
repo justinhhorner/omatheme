@@ -58,11 +58,8 @@ public sealed class ApplyService(ThemeApplier applier, SettingsStore settings, I
             log.LogError("Applying {Slug}: {Step} failed: {Error}", theme.Slug, failed.Step, failed.Error);
         if (result.AnyApplied)
         {
-            settings.Update(s => s with
-            {
-                LastAppliedSlug = theme.Slug,
-                LastAppliedWallpaper = request.WallpaperPath is null ? null : Path.GetFileName(request.WallpaperPath),
-            });
+            var file = request.WallpaperPath is null ? null : Path.GetFileName(request.WallpaperPath);
+            settings.Update(s => s.AfterApply(theme.Slug, file, result));
             ActiveThemeChanged?.Invoke(this, EventArgs.Empty);
         }
         return ApplySummary.Describe(result, theme.Name, theme.Mode);
