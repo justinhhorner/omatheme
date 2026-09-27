@@ -18,10 +18,10 @@
             </StackPanel>
 
             <TextBlock MaxWidth="640" HorizontalAlignment="Left" TextWrapping="Wrap">
-                The themes in this app come from the Omarchy community theme gallery. Omarchy is an
+                The themes in this app are the ones that ship with Omarchy, plus the Omarchy community theme gallery. Omarchy is an
                 opinionated Linux (Arch + Hyprland) setup by DHH and the Omarchy contributors. This app is
                 an independent companion that re-applies each theme's wallpaper and colors on Windows.
-                Each theme belongs to its author and is fetched from its own GitHub repository.
+                Each theme belongs to its author and is fetched from its GitHub repository.
             </TextBlock>
 
             <StackPanel Orientation="Horizontal" Spacing="8">

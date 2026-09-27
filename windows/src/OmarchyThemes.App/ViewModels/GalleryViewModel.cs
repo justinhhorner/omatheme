@@ -93,7 +93,8 @@ public sealed partial class GalleryViewModel : ObservableObject
         if (_catalog.LoadCached() is { } cached)
         {
             Show(cached);
-            if (DateTimeOffset.Now - cached.FetchedAt < AutoRefreshAfter)
+            // Refresh when the cache is old, or has no default themes yet (e.g. they failed to load).
+            if (cached.Entries.Any(e => e.IsDefaultTheme) && DateTimeOffset.Now - cached.FetchedAt < AutoRefreshAfter)
                 return;
         }
         else
@@ -174,7 +175,7 @@ public sealed partial class GalleryViewModel : ObservableObject
             .Where(c => !ShowDownloadedOnly || c.IsDownloaded)
             .ToList();
 
-        var count = VisibleThemes.Count == _all.Count ? $"{_all.Count} community themes" : $"{VisibleThemes.Count} of {_all.Count} themes";
+        var count = VisibleThemes.Count == _all.Count ? $"{_all.Count} themes" : $"{VisibleThemes.Count} of {_all.Count} themes";
         Subtitle = _fetchedAt is { } at ? $"{count} · updated {Ui.Ago(at, DateTimeOffset.Now)}" : count;
     }
 }

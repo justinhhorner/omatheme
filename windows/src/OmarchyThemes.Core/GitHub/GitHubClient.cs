@@ -27,10 +27,7 @@ public sealed class GitHubClient
 
     public async Task<RepoTree> GetTreeAsync(RepoRef repo, CancellationToken ct = default)
     {
-        var uri = new Uri(
-            $"https://api.github.com/repos/{Esc(repo.Owner)}/{Esc(repo.Name)}/git/trees/{Esc(repo.EffectiveRef)}?recursive=1");
-
-        var response = await _cache.GetAsync(uri, new CacheOptions
+        var response = await _cache.GetAsync(TreeUri(repo), new CacheOptions
         {
             MaxAge = FreshFor,
             ConfigureRequest = r =>
@@ -45,6 +42,30 @@ public sealed class GitHubClient
             MapError = r => MapApiError(r, repo),
         }, ct).ConfigureAwait(false);
 
+        return ParseTree(response, repo);
+    }
+
+    /// <summary>The cached file list for <paramref name="repo"/> without touching the network, or null.</summary>
+    public RepoTree? TryGetCachedTree(RepoRef repo)
+    {
+        var cached = _cache.TryGetCached(TreeUri(repo));
+        if (cached is null)
+            return null;
+        try
+        {
+            return ParseTree(cached, repo);
+        }
+        catch (GitHubException)
+        {
+            return null;
+        }
+    }
+
+    private static Uri TreeUri(RepoRef repo) =>
+        new($"https://api.github.com/repos/{Esc(repo.Owner)}/{Esc(repo.Name)}/git/trees/{Esc(repo.EffectiveRef)}?recursive=1");
+
+    private static RepoTree ParseTree(CachedResponse response, RepoRef repo)
+    {
         TreeResponse? tree;
         try
         {

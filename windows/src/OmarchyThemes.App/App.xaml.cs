@@ -36,7 +36,7 @@ public partial class App : Application
 
         services.AddSingleton(paths);
         services.AddSingleton(_ => new HttpCache(HttpClients.CreateApi(), paths.CacheDir));
-        services.AddSingleton(sp => new CatalogService(sp.GetRequiredService<HttpCache>()));
+        services.AddSingleton(sp => new CatalogService(sp.GetRequiredService<HttpCache>(), github: sp.GetRequiredService<GitHubClient>()));
         services.AddSingleton(sp => new GitHubClient(sp.GetRequiredService<HttpCache>(), StorageInfo.GitHubToken()));
         services.AddSingleton<ThemeResolver>();
         services.AddSingleton<ThemeDetailsService>();

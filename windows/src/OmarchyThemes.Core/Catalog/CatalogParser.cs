@@ -7,7 +7,16 @@ namespace OmarchyThemes.Core.Catalog;
 
 /// <summary>One theme card from omarchy.org/themes.</summary>
 /// <param name="Slug">Stable local id (screenshot file stem, else derived from the repo name).</param>
-public sealed record CatalogEntry(string Slug, string Name, string RepoUrl, string? ScreenshotUrl);
+public sealed record CatalogEntry(string Slug, string Name, string RepoUrl, string? ScreenshotUrl)
+{
+    /// <summary>One of the themes that ship with Omarchy (see <see cref="DefaultThemes"/>).</summary>
+    public bool IsDefaultTheme => DefaultThemes.IsDefault(Slug);
+
+    /// <summary>"owner/repo" for community themes; default themes all live in Omarchy's repo.</summary>
+    public string RepoDisplay => IsDefaultTheme
+        ? "Included with Omarchy"
+        : RepoRef.TryParse(RepoUrl, out var repo) ? repo.FullName : RepoUrl;
+}
 
 /// <summary>
 /// Parses the omarchy.org/themes gallery. The live page (an Astro build) renders each theme as

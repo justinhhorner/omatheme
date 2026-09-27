@@ -40,7 +40,7 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
 
     public string Name => Entry.Name;
 
-    public string RepoDisplay => RepoRef.TryParse(Entry.RepoUrl, out var repo) ? repo.FullName : Entry.RepoUrl;
+    public string RepoDisplay => Entry.RepoDisplay;
 
     public Uri RepoUri => new(Entry.RepoUrl);
 

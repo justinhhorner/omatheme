@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Media;
 using OmarchyThemes.App.Helpers;
 using OmarchyThemes.Core.Catalog;
 using OmarchyThemes.Core.Colors;
-using OmarchyThemes.Core.GitHub;
 using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Storage;
 
@@ -60,7 +59,7 @@ public sealed partial class ThemeCardViewModel : ObservableObject
     {
         Entry = entry;
         LocalScreenshot = localScreenshot;
-        RepoDisplay = RepoRef.TryParse(entry.RepoUrl, out var repo) ? repo.FullName : entry.RepoUrl;
+        RepoDisplay = entry.RepoDisplay;
     }
 
     public CatalogEntry Entry { get; }

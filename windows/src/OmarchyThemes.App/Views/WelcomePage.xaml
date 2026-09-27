@@ -26,7 +26,7 @@
                 Style="{StaticResource BodyTextBlockStyle}"
                 TextAlignment="Center"
                 TextWrapping="Wrap">
-                Browse the community themes made for Omarchy, DHH's opinionated Linux setup, and bring their wallpapers and colors to your Windows desktop. Nothing changes until you pick a theme and choose Apply.
+                Browse the themes that come with Omarchy, DHH's opinionated Linux setup, and the ones its community makes, and bring their wallpapers and colors to your Windows desktop. Nothing changes until you pick a theme and choose Apply.
             </TextBlock>
 
             <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
