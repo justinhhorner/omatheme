@@ -1,0 +1,9 @@
+# Keeps editors (Visual Studio, VS Code, Xcode plugins) creating files that match .gitattributes.
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+
+[*.sln]
+end_of_line = crlf
