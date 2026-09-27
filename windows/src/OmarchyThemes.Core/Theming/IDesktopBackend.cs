@@ -43,7 +43,11 @@ public interface IDesktopBackend
     Task RestoreAsync(DesktopSnapshot snapshot, CancellationToken ct = default);
 
     /// <summary>Sets <paramref name="imagePath"/> (a local file) as the wallpaper on every monitor.</summary>
-    Task SetWallpaperAsync(string imagePath, WallpaperFit fit, CancellationToken ct = default);
+    /// <param name="fillColor">
+    /// The desktop color around the image when it doesn't cover the screen (Fit, Center); the theme's
+    /// background, so the wallpaper is framed in the theme's color instead of black. Null leaves it unchanged.
+    /// </param>
+    Task SetWallpaperAsync(string imagePath, WallpaperFit fit, RgbColor? fillColor, CancellationToken ct = default);
 
     Task SetAppearanceModeAsync(AppearanceMode mode, CancellationToken ct = default);
 

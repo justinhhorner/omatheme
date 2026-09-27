@@ -8,6 +8,73 @@
     Background="Transparent"
     NavigationCacheMode="Required">
 
+    <Page.Resources>
+        <!-- Uniform stretch keeps each card's proportions, so screenshots stay ~16:9. -->
+        <UniformGridLayout
+            x:Key="CardLayout"
+            ItemsStretch="Uniform"
+            MinColumnSpacing="16"
+            MinItemHeight="214"
+            MinItemWidth="280"
+            MinRowSpacing="16" />
+
+        <!-- A card is a Button: focusable, Enter/Space/click to open, and an Invoke pattern for UI Automation. -->
+        <DataTemplate x:Key="ThemeCardTemplate" x:DataType="vm:ThemeCardViewModel">
+            <Button
+                AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                Click="Card_Click"
+                Style="{StaticResource ThemeCardButtonStyle}"
+                Tag="{x:Bind}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" CornerRadius="7,7,0,0">
+                        <Image Source="{x:Bind Screenshot}" Stretch="UniformToFill" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Padding="12,8,12,10" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock
+                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                Text="{x:Bind Name}"
+                                TextTrimming="CharacterEllipsis" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Text="{x:Bind RepoDisplay}"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="6">
+                            <Border Style="{StaticResource AccentBadgeStyle}" Visibility="{x:Bind IsActive, Mode=OneWay}">
+                                <TextBlock
+                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                    Text="Current" />
+                            </Border>
+                            <FontIcon
+                                FontSize="14"
+                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                Glyph="&#xE73E;"
+                                ToolTipService.ToolTip="Downloaded"
+                                Visibility="{x:Bind IsDownloaded, Mode=OneWay}" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Button>
+        </DataTemplate>
+    </Page.Resources>
+
     <Grid Padding="36,24,36,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -90,7 +157,7 @@
                     Grid.Column="2"
                     AutomationProperties.Name="Refresh catalog"
                     Command="{x:Bind ViewModel.RefreshCommand}"
-                    ToolTipService.ToolTip="Refresh from omarchy.org (F5)">
+                    ToolTipService.ToolTip="Refresh from omarchy.org and GitHub (F5)">
                     <Button.KeyboardAccelerators>
                         <KeyboardAccelerator Key="F5" />
                     </Button.KeyboardAccelerators>
@@ -105,88 +172,85 @@
             </Grid>
         </Grid>
 
-        <InfoBar
-            Grid.Row="1"
-            Margin="0,0,0,12"
-            IsOpen="{x:Bind h:Ui.IsSet(ViewModel.Notice), Mode=OneWay}"
-            Message="{x:Bind ViewModel.Notice, Mode=OneWay}"
-            Severity="Warning" />
+        <StackPanel Grid.Row="1">
+            <InfoBar
+                Margin="0,0,0,12"
+                IsOpen="{x:Bind h:Ui.IsSet(ViewModel.Notice), Mode=OneWay}"
+                Message="{x:Bind ViewModel.Notice, Mode=OneWay}"
+                Severity="Warning" />
+            <InfoBar
+                Margin="0,0,0,12"
+                IsOpen="{x:Bind h:Ui.IsSet(ViewModel.DefaultThemesNotice), Mode=OneWay}"
+                Message="{x:Bind ViewModel.DefaultThemesNotice, Mode=OneWay}"
+                Severity="Warning"
+                Title="Omarchy's themes are missing">
+                <InfoBar.ActionButton>
+                    <Button Command="{x:Bind ViewModel.RefreshCommand}" Content="Try again" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+        </StackPanel>
 
         <Grid Grid.Row="2">
-            <ItemsView
-                x:Name="ThemesView"
-                Padding="0,0,0,36"
-                IsItemInvokedEnabled="True"
-                ItemInvoked="ThemesView_ItemInvoked"
-                ItemsSource="{x:Bind ViewModel.VisibleThemes, Mode=OneWay}"
-                SelectionMode="None"
+            <!-- Two virtualizing repeaters sharing one scroll area; arrow keys move between cards. -->
+            <ScrollViewer
+                x:Name="ThemesScroller"
+                Margin="0,0,-36,0"
+                Padding="0,0,36,0"
                 Visibility="{x:Bind ViewModel.HasThemes, Mode=OneWay}">
-                <ItemsView.Layout>
-                    <!-- Uniform stretch keeps each card's proportions, so screenshots stay ~16:9. -->
-                    <UniformGridLayout
-                        ItemsStretch="Uniform"
-                        MinColumnSpacing="16"
-                        MinItemHeight="214"
-                        MinItemWidth="280"
-                        MinRowSpacing="16" />
-                </ItemsView.Layout>
-                <ItemsView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ThemeCardViewModel">
-                        <ItemContainer AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}" CornerRadius="{StaticResource OverlayCornerRadius}">
-                            <Grid
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{StaticResource OverlayCornerRadius}">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
+                <StackPanel Padding="0,0,0,36" XYFocusKeyboardNavigation="Enabled">
+                    <StackPanel Visibility="{x:Bind ViewModel.HasDefaultSection, Mode=OneWay}">
+                        <StackPanel
+                            Margin="1,4,0,12"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                AutomationProperties.HeadingLevel="Level2"
+                                Style="{StaticResource SubtitleTextBlockStyle}"
+                                Text="Included with Omarchy" />
+                            <Border Style="{StaticResource BadgeStyle}">
+                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind ViewModel.DefaultThemes.Count, Mode=OneWay}" />
+                            </Border>
+                            <TextBlock
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource SecondaryTextStyle}"
+                                Text="The themes Omarchy ships with" />
+                        </StackPanel>
+                        <ItemsRepeater
+                            ItemTemplate="{StaticResource ThemeCardTemplate}"
+                            ItemsSource="{x:Bind ViewModel.DefaultThemes, Mode=OneWay}"
+                            Layout="{StaticResource CardLayout}"
+                            TabFocusNavigation="Once" />
+                    </StackPanel>
 
-                                <Grid Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" CornerRadius="7,7,0,0">
-                                    <Image Source="{x:Bind Screenshot}" Stretch="UniformToFill" />
-                                </Grid>
-
-                                <Grid Grid.Row="1" Padding="12,8,12,10" ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock
-                                            Style="{StaticResource BodyStrongTextBlockStyle}"
-                                            Text="{x:Bind Name}"
-                                            TextTrimming="CharacterEllipsis" />
-                                        <TextBlock
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            Style="{StaticResource CaptionTextBlockStyle}"
-                                            Text="{x:Bind RepoDisplay}"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <StackPanel
-                                        Grid.Column="1"
-                                        VerticalAlignment="Center"
-                                        Orientation="Horizontal"
-                                        Spacing="6">
-                                        <Border Style="{StaticResource AccentBadgeStyle}" Visibility="{x:Bind IsActive, Mode=OneWay}">
-                                            <TextBlock
-                                                Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                                Style="{StaticResource CaptionTextBlockStyle}"
-                                                Text="Current" />
-                                        </Border>
-                                        <FontIcon
-                                            FontSize="14"
-                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                            Glyph="&#xE73E;"
-                                            ToolTipService.ToolTip="Downloaded"
-                                            Visibility="{x:Bind IsDownloaded, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Grid>
-                            </Grid>
-                        </ItemContainer>
-                    </DataTemplate>
-                </ItemsView.ItemTemplate>
-            </ItemsView>
+                    <StackPanel Visibility="{x:Bind ViewModel.HasCommunitySection, Mode=OneWay}">
+                        <StackPanel
+                            Margin="1,28,0,12"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                AutomationProperties.HeadingLevel="Level2"
+                                Style="{StaticResource SubtitleTextBlockStyle}"
+                                Text="Community" />
+                            <Border Style="{StaticResource BadgeStyle}">
+                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind ViewModel.CommunityThemes.Count, Mode=OneWay}" />
+                            </Border>
+                            <TextBlock
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource SecondaryTextStyle}"
+                                Text="From omarchy.org/themes" />
+                        </StackPanel>
+                        <ItemsRepeater
+                            ItemTemplate="{StaticResource ThemeCardTemplate}"
+                            ItemsSource="{x:Bind ViewModel.CommunityThemes, Mode=OneWay}"
+                            Layout="{StaticResource CardLayout}"
+                            TabFocusNavigation="Once" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
 
             <!-- Loading (first run, nothing cached) -->
             <StackPanel Style="{StaticResource EmptyStatePanelStyle}" Visibility="{x:Bind ViewModel.ShowLoading, Mode=OneWay}">
@@ -194,7 +258,7 @@
                 <TextBlock
                     HorizontalAlignment="Center"
                     Style="{StaticResource SecondaryTextStyle}"
-                    Text="Loading themes from omarchy.org…" />
+                    Text="Loading themes…" />
             </StackPanel>
 
             <!-- Error with nothing to show -->

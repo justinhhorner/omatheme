@@ -87,9 +87,24 @@ public sealed class WindowsDesktopBackendTests : IDisposable
     [Fact]
     public async Task Wallpaper_is_converted_when_needed_then_set_on_all_monitors()
     {
-        await _backend.SetWallpaperAsync(@"C:\themes\vulkanite\wallpapers\1.webp", WallpaperFit.Span);
+        await _backend.SetWallpaperAsync(@"C:\themes\vulkanite\wallpapers\1.webp", WallpaperFit.Span, null);
 
-        Assert.Equal((@"C:\themes\vulkanite\wallpapers\1.webp.png", WallpaperFit.Span), _wallpaper.LastSet);
+        Assert.Equal((@"C:\themes\vulkanite\wallpapers\1.webp.png", WallpaperFit.Span, (RgbColor?)null), _wallpaper.LastSet);
+    }
+
+    [Fact]
+    public async Task Theme_background_is_passed_as_the_desktop_fill_color()
+    {
+        await _backend.SetWallpaperAsync(@"C:\themes\tokyo\wallpapers\1.png", WallpaperFit.Fit, RgbColor.Parse("#1a1b26"));
+
+        Assert.Equal((@"C:\themes\tokyo\wallpapers\1.png", WallpaperFit.Fit, (RgbColor?)RgbColor.Parse("#1a1b26")), _wallpaper.LastSet);
+    }
+
+    [Fact]
+    public void Colorref_is_0x00BBGGRR()
+    {
+        Assert.Equal(0x00F7A27Au, (uint)DesktopWallpaperApi.ToColorRef(RgbColor.Parse("#7aa2f7")));
+        Assert.Equal(RgbColor.Parse("#7aa2f7"), DesktopWallpaperApi.FromColorRef(DesktopWallpaperApi.ToColorRef(RgbColor.Parse("#7aa2f7"))));
     }
 
     [Fact]
@@ -102,14 +117,15 @@ public sealed class WindowsDesktopBackendTests : IDisposable
         _registry.Values[(AccentKey, "AccentPalette")] = RegValue.Binary([9, 9, 9]);
         _wallpaper.State = new WallpaperState(
             [new MonitorWallpaper("MON1", original), new MonitorWallpaper("MON2", "")],
-            WallpaperFit.Fit);
+            WallpaperFit.Fit,
+            Background: RgbColor.Parse("#000000"));
 
         var snapshot = await _backend.CaptureAsync();
 
         // Apply a theme, which changes values and adds ones that didn't exist before.
         await _backend.SetAppearanceModeAsync(AppearanceMode.Dark);
         await _backend.SetAccentColorAsync(RgbColor.Parse("#ff0000"));
-        await _backend.SetWallpaperAsync(Path.Combine(_dir, "theme.png"), WallpaperFit.Fill);
+        await _backend.SetWallpaperAsync(Path.Combine(_dir, "theme.png"), WallpaperFit.Fill, RgbColor.Parse("#1a1b26"));
 
         await _backend.RestoreAsync(snapshot);
 
@@ -123,6 +139,7 @@ public sealed class WindowsDesktopBackendTests : IDisposable
 
         var restored = _wallpaper.Restored!;
         Assert.Equal(WallpaperFit.Fit, restored.Fit);
+        Assert.Equal(RgbColor.Parse("#000000"), restored.Background);
         Assert.Equal([new MonitorWallpaper("MON1", original), new MonitorWallpaper("MON2", "")], restored.Monitors);
     }
 
@@ -195,14 +212,14 @@ public sealed class WindowsDesktopBackendTests : IDisposable
     private sealed class FakeWallpaperApi : IWallpaperApi
     {
         public WallpaperState State { get; set; } = new([], null);
-        public (string Path, WallpaperFit Fit)? LastSet { get; private set; }
+        public (string Path, WallpaperFit Fit, RgbColor? Background)? LastSet { get; private set; }
         public WallpaperState? Restored { get; private set; }
 
         public Task<WallpaperState> GetAsync() => Task.FromResult(State);
 
-        public Task SetAsync(string path, WallpaperFit fit)
+        public Task SetAsync(string path, WallpaperFit fit, RgbColor? background)
         {
-            LastSet = (path, fit);
+            LastSet = (path, fit, background);
             return Task.CompletedTask;
         }
 

@@ -2,6 +2,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
+using OmarchyThemes.App.Services;
 using OmarchyThemes.App.Views;
 using Windows.Graphics;
 
@@ -23,6 +24,11 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumWidth = 760;
             presenter.PreferredMinimumHeight = 540;
         }
+
+        // Test switches (OMARCHY_THEMES_DRY_RUN / _DATA_DIR) are always visible, so a test session
+        // can't be mistaken for one that changes the real desktop.
+        if (App.GetService<AppEnvironment>().Badge is { } badge)
+            AppTitleBar.Subtitle = badge;
 
         RootFrame.Navigate(showWelcome ? typeof(WelcomePage) : typeof(ShellPage));
     }

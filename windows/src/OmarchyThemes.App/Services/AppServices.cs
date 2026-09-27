@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
 using OmarchyThemes.Core;
@@ -36,25 +37,8 @@ public static class HttpClients
     }
 }
 
-/// <summary>Resolved theme details, memoized for the session so revisiting a theme is instant.</summary>
-public sealed class ThemeDetailsService(ThemeResolver resolver)
-{
-    private readonly Dictionary<string, ThemeDetails> _cache = new();
-
-    public ThemeDetails? TryGetCached(string slug) => _cache.GetValueOrDefault(slug);
-
-    public async Task<ThemeDetails> ResolveAsync(CatalogEntry entry, bool force = false, CancellationToken ct = default)
-    {
-        if (!force && _cache.TryGetValue(entry.Slug, out var cached))
-            return cached;
-        var details = await resolver.ResolveAsync(entry, ct);
-        _cache[entry.Slug] = details;
-        return details;
-    }
-}
-
 /// <summary>Applies downloaded themes and remembers which one is active.</summary>
-public sealed class ApplyService(ThemeApplier applier, SettingsStore settings)
+public sealed class ApplyService(ThemeApplier applier, SettingsStore settings, ILogger<ApplyService> log)
 {
     public event EventHandler? ActiveThemeChanged;
 
@@ -68,6 +52,10 @@ public sealed class ApplyService(ThemeApplier applier, SettingsStore settings)
     {
         var request = ApplyRequest.FromInstalled(theme, wallpaperFile, options);
         var result = await applier.ApplyAsync(request);
+        log.LogInformation("Applied {Slug}: {Steps}", theme.Slug,
+            string.Join(", ", result.Steps.Select(s => $"{s.Step}={s.Outcome}")));
+        foreach (var failed in result.Steps.Where(s => s.Outcome == StepOutcome.Failed))
+            log.LogError("Applying {Slug}: {Step} failed: {Error}", theme.Slug, failed.Step, failed.Error);
         if (result.AnyApplied)
         {
             settings.Update(s => s with
@@ -82,7 +70,17 @@ public sealed class ApplyService(ThemeApplier applier, SettingsStore settings)
 
     public async Task<bool> RestoreOriginalAsync()
     {
-        var restored = await applier.RestoreOriginalAsync();
+        bool restored;
+        try
+        {
+            restored = await applier.RestoreOriginalAsync();
+        }
+        catch (Exception e)
+        {
+            log.LogError(e, "Restoring the original desktop failed");
+            throw;
+        }
+        log.LogInformation("Restore original desktop: {Result}", restored ? "restored" : "nothing saved");
         if (restored)
         {
             settings.Update(s => s with { LastAppliedSlug = null, LastAppliedWallpaper = null });

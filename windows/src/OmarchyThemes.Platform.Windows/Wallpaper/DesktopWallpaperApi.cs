@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using OmarchyThemes.Core.Colors;
 using OmarchyThemes.Core.Theming;
 using Windows.Win32;
 using Windows.Win32.Foundation;
@@ -9,14 +10,15 @@ namespace OmarchyThemes.Platform.Windows.Wallpaper;
 
 public sealed record MonitorWallpaper(string MonitorId, string Path);
 
-public sealed record WallpaperState(IReadOnlyList<MonitorWallpaper> Monitors, WallpaperFit? Fit);
+/// <param name="Background">The desktop fill color shown around Fit/Center wallpapers (system-wide).</param>
+public sealed record WallpaperState(IReadOnlyList<MonitorWallpaper> Monitors, WallpaperFit? Fit, RgbColor? Background = null);
 
 public interface IWallpaperApi
 {
     Task<WallpaperState> GetAsync();
 
-    /// <summary>Sets <paramref name="path"/> on every monitor.</summary>
-    Task SetAsync(string path, WallpaperFit fit);
+    /// <summary>Sets <paramref name="path"/> on every monitor, and the fill color around it when given.</summary>
+    Task SetAsync(string path, WallpaperFit fit, RgbColor? background);
 
     /// <summary>Puts back per-monitor wallpapers. An empty path means "no picture" (solid color).</summary>
     Task RestoreAsync(WallpaperState state);
@@ -50,7 +52,8 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
                 monitors.Add(new MonitorWallpaper(id, TakeString(pathPtr) ?? ""));
             }
             wallpaper.GetPosition(out var position);
-            return new WallpaperState(monitors, FromPosition(position));
+            wallpaper.GetBackgroundColor(out var background);
+            return new WallpaperState(monitors, FromPosition(position), FromColorRef(background));
         }
         finally
         {
@@ -58,12 +61,14 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
         }
     });
 
-    public Task SetAsync(string path, WallpaperFit fit) => Sta.RunAsync(() =>
+    public Task SetAsync(string path, WallpaperFit fit, RgbColor? background) => Sta.RunAsync(() =>
     {
         if (TryCreate() is { } wallpaper)
         {
             try
             {
+                if (background is { } color)
+                    wallpaper.SetBackgroundColor(ToColorRef(color));
                 wallpaper.SetPosition(ToPosition(fit));
                 wallpaper.SetWallpaper((string?)null!, path); // null monitor = all monitors
                 return true;
@@ -86,6 +91,8 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
         var wallpaper = TryCreate();
         try
         {
+            if (wallpaper is not null && state.Background is { } background)
+                wallpaper.SetBackgroundColor(ToColorRef(background));
             if (wallpaper is not null && state.Fit is { } fit)
                 wallpaper.SetPosition(ToPosition(fit));
 
@@ -162,6 +169,11 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
             return new string(p);
         }
     }
+
+    /// <summary>COLORREF is 0x00BBGGRR: ABGR with a zero alpha byte.</summary>
+    internal static COLORREF ToColorRef(RgbColor color) => (COLORREF)AccentMath.ToAbgr(color, alpha: 0);
+
+    internal static RgbColor FromColorRef(COLORREF value) => AccentMath.FromAbgr(value);
 
     internal static DESKTOP_WALLPAPER_POSITION ToPosition(WallpaperFit fit) => fit switch
     {

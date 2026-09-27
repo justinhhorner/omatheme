@@ -21,6 +21,13 @@ public static class Ui
 
     public static bool IsSet(string? value) => !string.IsNullOrEmpty(value);
 
+    /// <summary>
+    /// The data item behind an element in an item template. ItemsRepeater doesn't set DataContext for
+    /// compiled (x:Bind) templates, so template elements carry their item in <c>Tag="{x:Bind}"</c>.
+    /// </summary>
+    public static T? ItemOf<T>(object? sender) where T : class =>
+        sender is FrameworkElement element ? element.Tag as T ?? element.DataContext as T : null;
+
     public static SolidColorBrush Brush(RgbColor color) => new(ColorHelper.FromArgb(255, color.R, color.G, color.B));
 
     /// <summary>Text color that stays readable on top of <paramref name="background"/>.</summary>

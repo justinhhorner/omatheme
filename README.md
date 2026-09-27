@@ -40,7 +40,6 @@ macos/
     Tests/                         Swift Testing, platform-neutral + backend against a fake
   tools/generate-app-icon.swift    renders the asset-catalog icon set from design/AppIcon.svg
 fixtures/                          test fixtures shared by the Windows and Swift tests
-docs/macos-to-windows.md           macOS features still to bring to the Windows app
 ```
 
 ## Building on Windows
@@ -58,7 +57,26 @@ dotnet test
 ```
 
 The app project defaults to the host architecture; pass `-p:Platform=ARM64` (or `x64`) to
-cross-build.
+cross-build. Solution and project builds share one output folder
+(`src/OmarchyThemes.App/bin/Debug/net10.0-windows10.0.26100.0/win-x64/`), so `dotnet run` never
+launches a stale build.
+
+The same test switches as on macOS:
+
+| Variable | Effect |
+|---|---|
+| `OMARCHY_THEMES_DRY_RUN=1` | Swaps in a backend that reports Windows' capabilities but changes nothing, so Apply and Restore can be exercised end to end without touching the desktop. The title bar shows a "Dry run" badge. |
+| `OMARCHY_THEMES_DATA_DIR=<path>` | Uses another data folder instead of `%LOCALAPPDATA%\OmarchyThemes` (fresh first launch, no risk to real downloads or the saved original desktop). |
+
+Use both whenever the UI is driven by a script:
+
+```powershell
+$env:OMARCHY_THEMES_DRY_RUN = '1'; $env:OMARCHY_THEMES_DATA_DIR = "$env:TEMP\omatheme-test"
+dotnet run --project src/OmarchyThemes.App
+```
+
+Errors and notable events (catalog, default themes, downloads, apply, restore) are logged to
+`logs\omarchy-themes-yyyyMMdd.log` in the data folder (kept for a week) and to the debugger output.
 
 ## Building on macOS
 
@@ -138,7 +156,11 @@ Known limitations:
 
 - **Core** holds all logic that doesn't touch the OS, so it's unit-tested without Windows:
   catalog parsing, GitHub repo resolution with an ETag cache, palette parsers, the on-disk theme
-  store, and `ThemeApplier`, which drives an `IDesktopBackend` abstraction.
+  store, and `ThemeApplier`, which drives an `IDesktopBackend` abstraction. It also owns
+  **downloads** (`ThemeDownloads`, keyed by theme): they outlive the page that started them, so
+  leaving a theme mid-download neither cancels nor orphans it, coming back shows the live
+  progress, and pressing Download again joins the running download. Concurrent lookups of one
+  theme share a single GitHub request (`ThemeDetailsService`).
 - **Platform.Windows** implements `IDesktopBackend` (`WindowsDesktopBackend`). Each OS touchpoint
   sits behind a small interface (`IRegistryAccess`, `IWallpaperApi`, `ISettingsBroadcaster`,
   `IImageConverter`) so the backend is tested without changing the machine it runs on.
@@ -153,6 +175,7 @@ themes/<slug>/          theme.json manifest, wallpapers/, screenshot
 settings.json           welcome seen, one-click apply defaults, last applied theme
 original-desktop.json   snapshot taken before the first Apply
 original-desktop/       private copies of the original wallpapers, used by Restore
+logs/                   daily log files, kept for a week
 ```
 
 ### The UI
@@ -160,8 +183,9 @@ original-desktop/       private copies of the original wallpapers, used by Resto
 | View | What it does |
 |---|---|
 | Welcome | First launch only (and from Settings): what the app is, links to omarchy.org and basecamp/omarchy, **Browse Themes**. |
-| Gallery | Screenshot card grid (`ItemsView` + `UniformGridLayout`), search (Ctrl+F), "downloaded only" filter, refresh (F5). Shows the cached catalog instantly and refreshes in the background when it's older than 12 hours. Has loading, error, empty-result and "showing cached copy" states. |
-| Theme detail | Large screenshot, key colors and terminal swatches, wallpaper picker, repo link, light/dark badge. **Download** shows per-file progress and can be cancelled; **Download and apply** / **Apply to desktop** opens the Apply dialog. Downloaded themes render entirely from disk. |
+| Gallery | Two sections, **Included with Omarchy** and **Community**, each with a count; search (Ctrl+F) and the "downloaded only" filter apply to both, and an empty section is hidden. Screenshot cards in two virtualizing `ItemsRepeater`s (`UniformGridLayout`) sharing one scroll area, with arrow-key navigation between cards. Refresh (F5). Shows the cached catalog instantly and refreshes in the background when it's older than 12 hours (or has no default themes yet). Has loading, error, empty-result and "showing cached copy" states, plus an "Omarchy's themes are missing" warning when the default themes couldn't be listed. |
+| Theme detail | Large screenshot, key colors and terminal swatches, wallpaper picker, light/dark badge, **View on GitHub** (GitHub's mark). **Download** shows per-file progress in bytes and can be cancelled, and keeps going if you leave the page; **Download and apply** / **Apply to desktop** opens the Apply dialog. Downloaded themes render entirely from disk. |
+| Wallpaper preview | Shows a wallpaper large over the theme page: from the **Preview** button, a hover button on a thumbnail, double-click, or the thumbnail's context menu. Full resolution (decoded at up to 2560 px) with a spinner while a remote image loads; previous/next (also ← / →, wrapping), file name and "3 of 8", **Use this wallpaper** (selects it for Apply) and close (also Esc, or click outside the bar). Focus moves into the preview and back to the thumbnail. |
 | Apply dialog | One checkbox per aspect (wallpaper + fit, light/dark, accent). Options the OS or theme can't provide are disabled with a reason. Can save the choices as one-click defaults. |
 | Downloaded | Downloaded themes with one-click **Set as desktop theme** (uses the saved defaults), plus Apply with options, View details and Remove. |
 | Settings | One-click apply defaults, **Restore my original desktop**, storage and cache, GitHub rate-limit info, show welcome. |
@@ -193,7 +217,7 @@ wallpapers, so opening one costs no extra API request. Names follow Omarchy's ow
 `omarchy-theme-list` (folder `retro-82` → "Retro 82"), the screenshot is each theme's
 `preview.png`, and slugs are `omarchy.<folder>` so they can never collide with community themes.
 If GitHub can't be reached (or is rate-limited) with nothing cached, the community gallery still
-loads without them. On macOS the gallery says so; on Windows they're left out until the next refresh.
+loads without them, and both apps say so with a warning above the gallery.
 
 ### Theme resolution (GitHub)
 
@@ -216,7 +240,7 @@ Everything is per-user (HKCU) and needs no elevation.
 
 | Aspect | Mechanism |
 |---|---|
-| Wallpaper | `IDesktopWallpaper::SetPosition` (the chosen fit) + `SetWallpaper(NULL, path)` for every monitor, on an STA thread; `SystemParametersInfoW(SPI_SETDESKWALLPAPER)` fallback. WebP and other formats are first converted to PNG with WIC (`BitmapDecoder`/`BitmapEncoder`). |
+| Wallpaper | `IDesktopWallpaper::SetBackgroundColor` (the theme's `background`, so Fit/Center wallpapers are framed in the theme's color instead of black) + `SetPosition` (the chosen fit) + `SetWallpaper(NULL, path)` for every monitor, on an STA thread; `SystemParametersInfoW(SPI_SETDESKWALLPAPER)` fallback. WebP and other formats are first converted to PNG with WIC (`BitmapDecoder`/`BitmapEncoder`). |
 | Light / dark | `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` `AppsUseLightTheme` + `SystemUsesLightTheme`, then `WM_SETTINGCHANGE("ImmersiveColorSet")` via `SendMessageTimeout(SMTO_ABORTIFHUNG)` |
 | Accent color | `HKCU\…\DWM` `AccentColor` (ABGR) + `ColorizationColor`/`ColorizationAfterglow` (ARGB); `HKCU\…\Explorer\Accent` `AccentPalette` (8 × RGBA shades), `AccentColorMenu`, `StartColorMenu`; `HKCU\Control Panel\Desktop` `AutoColorization=0`; then the same broadcast. Near-black or near-white accents are lifted to a readable lightness first. |
 
@@ -227,7 +251,7 @@ Safety:
   "value was absent") and each monitor's wallpaper. It keeps a private copy of each wallpaper
   file, because Windows' `TranscodedWallpaper` is overwritten by the next wallpaper change.
   **Restore my original desktop** writes the values back (deleting ones that didn't exist before)
-  and restores the per-monitor wallpapers and fit.
+  and restores the per-monitor wallpapers, fit and desktop fill color (which is system-wide).
 - If the snapshot can't be taken, nothing is applied.
 
 Known limitations:
@@ -260,8 +284,6 @@ Known limitations:
 
 **Core (`OmarchyThemes.Core.Tests`)**
 
-
-
 | Area | Covered |
 |---|---|
 | Catalog parser | live `li > a > img + span` markup, `<figure>` layout, relative screenshots, skipping nav/non-GitHub/duplicate cards, unique slugs |
@@ -271,7 +293,8 @@ Known limitations:
 | HTTP cache / GitHub | ETag 304 revalidation, max-age, stale-when-offline, rate-limit reset time, 404, token sent only to the API |
 | Theme resolution | palette priority, `light.mode`, wallpaper discovery and natural ordering, repo sub-folders |
 | Store | atomic install (no partial theme on failure/cancel), reinstall, remove, settings round-trip |
-| `ThemeApplier` (fake backend) | snapshot-before-first-apply, abort if snapshot fails, per-step user/capability/data gating, partial failure, restore |
+| Downloads | starting again joins the running download (each file fetched once), progress in bytes across files ending at 100%, cancel leaves nothing behind, failures reported not thrown; concurrent lookups share one request, and one caller giving up doesn't cancel the shared lookup |
+| `ThemeApplier` (fake backend) | snapshot-before-first-apply, abort if snapshot fails, per-step user/capability/data gating, partial failure, restore, the theme background passed as the wallpaper fill color |
 | Accent math | ABGR/ARGB packing, 7-shade palette, `AccentPalette` bytes, normalizing unusable accents |
 | Apply summaries | success, partial failure, total failure, snapshot failure and all-skipped messages |
 
@@ -282,13 +305,24 @@ wallpaper and broadcast fakes:
 |---|---|
 | Light/dark | both `Personalize` values + `ImmersiveColorSet` broadcast |
 | Accent | exact DWM/Explorer values and byte layout, `AutoColorization=0`, near-black accents lifted, nothing written outside `TrackedValues` |
-| Wallpaper | conversion before setting, fit passed through |
-| Snapshot/restore | registry values restored and previously-absent values deleted, per-monitor wallpapers, falling back to the private copy when the original file is gone, JSON round-trip |
+| Wallpaper | conversion before setting, fit and exact fill color passed through, `COLORREF` packing (0x00BBGGRR) |
+| Snapshot/restore | registry values restored and previously-absent values deleted, per-monitor wallpapers, fit and fill color, falling back to the private copy when the original file is gone, JSON round-trip |
 | WIC conversion | real Windows Imaging Component on temp files: PNG output, reuse, actionable error for unreadable images |
 
 Fixtures are hand-written to mirror the real page and theme repos rather than copied from them.
-During development, Core was also run against the live site (all 146 themes parsed; sample themes
-covering every palette format resolved), and the backend's read path against a real desktop.
+
+**Live checks** (opt-in, read-only, skipped by default) run against the real site, GitHub and this
+PC's desktop:
+
+```powershell
+$env:OMATHEME_LIVE = '1'; dotnet test --filter Category=Live
+```
+
+Core parses omarchy.org (at least 100 community themes) and lists the default themes (at least 10), resolves Tokyo Night,
+Aetheria and Vulkanite (both `colors.toml` shapes, WebP wallpapers), and downloads one wallpaper
+checking that progress is reported in bytes and ends at the file size. The backend reads the
+current wallpaper, fit and fill color through `IDesktopWallpaper`, and every tracked registry value
+(checking it survives a snapshot round trip). About 3 GitHub API calls per run.
 
 ### macOS tests
 

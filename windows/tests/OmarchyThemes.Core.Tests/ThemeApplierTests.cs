@@ -42,6 +42,14 @@ public sealed class ThemeApplierTests : IDisposable
     }
 
     [Fact]
+    public async Task Passes_the_theme_background_as_the_wallpaper_fill_color()
+    {
+        await _applier.ApplyAsync(Request(new ApplyOptions { Fit = WallpaperFit.Fit }) with { Background = RgbColor.Parse("#1a1b26") });
+
+        Assert.Contains("wallpaper:wall.png:Fit:#1a1b26", _backend.Calls);
+    }
+
+    [Fact]
     public async Task Only_the_first_apply_takes_a_snapshot()
     {
         await _applier.ApplyAsync(Request());
@@ -180,7 +188,22 @@ public sealed class ThemeApplierTests : IDisposable
         Assert.EndsWith("1.png", ApplyRequest.FromInstalled(theme, "missing.png", options).WallpaperPath);
         Assert.EndsWith("1.png", ApplyRequest.FromInstalled(theme, null, options).WallpaperPath);
         Assert.Null(ApplyRequest.FromInstalled(theme, null, options).Accent);
+        Assert.Null(ApplyRequest.FromInstalled(theme, null, options).Background);
         Assert.Null(ApplyRequest.FromInstalled(theme with { Wallpapers = [] }, null, options).WallpaperPath);
+
+        var withPalette = theme with
+        {
+            Palette = new Palette
+            {
+                Background = RgbColor.Parse("#1a1b26"),
+                Foreground = RgbColor.Parse("#a9b1d6"),
+                Accent = RgbColor.Parse("#7aa2f7"),
+                Source = PaletteSource.ColorsToml,
+            },
+        };
+        var request = ApplyRequest.FromInstalled(withPalette, null, options);
+        Assert.Equal(RgbColor.Parse("#1a1b26"), request.Background);
+        Assert.Equal(RgbColor.Parse("#7aa2f7"), request.Accent);
     }
 
     [Fact]

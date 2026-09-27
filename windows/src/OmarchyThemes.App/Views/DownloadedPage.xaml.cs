@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using OmarchyThemes.App.Helpers;
 using OmarchyThemes.App.ViewModels;
 
 namespace OmarchyThemes.App.Views;
@@ -21,7 +22,7 @@ public sealed partial class DownloadedPage : Page
     }
 
     private static InstalledThemeViewModel? ItemOf(object sender) =>
-        (sender as FrameworkElement)?.DataContext as InstalledThemeViewModel;
+        Ui.ItemOf<InstalledThemeViewModel>(sender);
 
     private void SetAsDesktop_Click(object sender, RoutedEventArgs e)
     {

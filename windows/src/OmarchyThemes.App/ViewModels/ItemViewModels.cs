@@ -46,8 +46,14 @@ public sealed class WallpaperItemViewModel(string fileName, string source, strin
     /// <summary>File name inside the installed theme, or null if not downloaded.</summary>
     public string? LocalFile { get; } = localFile;
 
+    public string PreviewLabel => $"Preview {FileName}";
+
     private ImageSource? _thumbnail;
     public ImageSource? Thumbnail => _thumbnail ??= Ui.Image(Source, 360);
+
+    /// <summary>For the large preview: full resolution, downsampled to at most ~2560 px wide.</summary>
+    private ImageSource? _preview;
+    public ImageSource? Preview => _preview ??= Ui.Image(Source, 2560);
 }
 
 /// <summary>A card in the gallery grid.</summary>

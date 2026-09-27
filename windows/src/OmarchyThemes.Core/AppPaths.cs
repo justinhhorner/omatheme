@@ -26,6 +26,9 @@ public sealed class AppPaths
 
     public string SettingsFile => Path.Combine(Root, "settings.json");
 
+    /// <summary>Daily log files (errors and notable events), kept for a week.</summary>
+    public string LogsDir => Path.Combine(Root, "logs");
+
     /// <summary>Snapshot of the user's desktop taken before the first Apply, for "Restore".</summary>
     public string SnapshotFile => Path.Combine(Root, "original-desktop.json");
 

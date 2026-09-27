@@ -24,16 +24,20 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
     private readonly ApplyService _apply;
     private readonly SettingsStore _settings;
     private readonly NavigationService _navigation;
-    private CancellationTokenSource? _downloadCts;
+    private readonly ThemeDownloads _downloads;
+    private DownloadOperation? _download;
     private ImageSource? _screenshot;
 
-    public ThemeDetailViewModel(ThemeDetailsService details, ThemeStore store, ApplyService apply, SettingsStore settings, NavigationService navigation)
+    public ThemeDetailViewModel(
+        ThemeDetailsService details, ThemeStore store, ApplyService apply, SettingsStore settings,
+        NavigationService navigation, ThemeDownloads downloads)
     {
         _details = details;
         _store = store;
         _apply = apply;
         _settings = settings;
         _navigation = navigation;
+        _downloads = downloads;
     }
 
     public CatalogEntry Entry { get; private set; } = null!;
@@ -136,6 +140,10 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
         Entry = entry;
         OnPropertyChanged(string.Empty);
 
+        // A download started earlier (then navigated away from) is still running: show its live progress.
+        if (_downloads.Get(entry.Slug) is { } running)
+            _ = ObserveDownloadAsync(running, selectedIndex: 0);
+
         Installed = _store.Get(entry.Slug);
         if (Installed is not null)
         {
@@ -211,60 +219,79 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
 
     private bool CanDownload() => !IsDownloading;
 
+    /// <summary>
+    /// Downloads the theme, or joins its download if one is already running. The download itself
+    /// belongs to <see cref="ThemeDownloads"/>, so it keeps going if the user leaves this page.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanDownload))]
-    public async Task<bool> DownloadAsync()
+    public Task<bool> DownloadAsync()
     {
         IsResultOpen = false;
-        IsDownloading = true;
-        DownloadPercent = 0;
-        IsDownloadIndeterminate = true;
-        DownloadStatus = "Reading theme from GitHub…";
-        _downloadCts = new CancellationTokenSource();
         var selectedIndex = SelectedWallpaper is null ? 0 : Wallpapers.ToList().IndexOf(SelectedWallpaper);
+        // Re-resolve when re-downloading so updates to the theme are picked up.
+        return ObserveDownloadAsync(_downloads.Start(Entry, refresh: IsInstalled), selectedIndex);
+    }
 
+    private async Task<bool> ObserveDownloadAsync(DownloadOperation download, int selectedIndex)
+    {
+        if (_download == download)
+            return (await download.Completion).Theme is not null;
+
+        _download = download;
+        IsDownloading = true;
+        MirrorProgress(download);
+        download.PropertyChanged += OnDownloadProgressChanged;
         try
         {
-            // Re-resolve when re-downloading so updates to the theme are picked up.
-            var details = await _details.ResolveAsync(Entry, force: IsInstalled, _downloadCts.Token);
-            var totalBytes = details.Wallpapers.Sum(w => w.Size ?? 0);
-            var sizes = details.Wallpapers.Select(w => w.Size ?? 0).ToArray();
-            var progress = new Progress<DownloadProgress>(p =>
+            var outcome = await download.Completion;
+            if (outcome.Theme is { } installed)
             {
-                var done = sizes.Take(p.FileIndex).Sum() + p.BytesReceived;
-                IsDownloadIndeterminate = totalBytes == 0;
-                DownloadPercent = totalBytes == 0 ? 0 : Math.Min(100, 100.0 * done / totalBytes);
-                DownloadStatus = p.FileIndex < details.Wallpapers.Count
-                    ? $"Downloading wallpaper {p.FileIndex + 1} of {details.Wallpapers.Count} · {Ui.FormatBytes(done)} of {Ui.FormatBytes(totalBytes)}"
-                    : "Finishing up…";
-            });
-
-            var installed = await _store.InstallAsync(details, progress, _downloadCts.Token);
-            Details = details;
-            Installed = installed;
-            ShowInstalled(installed, selectedIndex);
-            return true;
-        }
-        catch (OperationCanceledException) when (_downloadCts.IsCancellationRequested)
-        {
-            ShowResult(InfoBarSeverity.Informational, "Download cancelled", "Nothing was saved.");
-            return false;
-        }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException or GitHubException or ThemeResolveException or InvalidOperationException)
-        {
-            ShowResult(InfoBarSeverity.Error, "Download failed",
-                e is TaskCanceledException ? "The connection timed out. Try again." : e.Message);
+                Details = outcome.Details;
+                Installed = installed;
+                ShowInstalled(installed, selectedIndex);
+                return true;
+            }
+            if (outcome.Cancelled)
+                ShowResult(InfoBarSeverity.Informational, "Download cancelled", "Nothing was saved.");
+            else
+                ShowResult(InfoBarSeverity.Error, "Download failed", outcome.Error switch
+                {
+                    TaskCanceledException => "The connection timed out. Try again.",
+                    { } error => error.Message,
+                    null => "Something went wrong.",
+                });
             return false;
         }
         finally
         {
+            download.PropertyChanged -= OnDownloadProgressChanged;
+            _download = null;
             IsDownloading = false;
-            _downloadCts.Dispose();
-            _downloadCts = null;
         }
     }
 
+    private void OnDownloadProgressChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is DownloadOperation download)
+            MirrorProgress(download);
+    }
+
+    private void MirrorProgress(DownloadOperation download)
+    {
+        var status = download.Status;
+        DownloadPercent = status.Percent ?? 0;
+        IsDownloadIndeterminate = status.Percent is null;
+        DownloadStatus = status.Phase switch
+        {
+            DownloadPhase.Resolving => "Reading theme from GitHub…",
+            DownloadPhase.Finishing => "Finishing up…",
+            _ => $"Downloading wallpaper {status.FileIndex + 1} of {status.FileCount} · "
+                 + $"{Ui.FormatBytes(status.BytesDone)} of {Ui.FormatBytes(status.TotalBytes)}",
+        };
+    }
+
     [RelayCommand]
-    private void CancelDownload() => _downloadCts?.Cancel();
+    private void CancelDownload() => _download?.Cancel();
 
     public async Task ApplyAsync(ApplyOptions options)
     {

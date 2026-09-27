@@ -12,14 +12,13 @@ GitHub repo) and applies the equivalent look on the host OS (wallpaper, plus lig
 allows). It never runs Omarchy's Linux/Hyprland configs. Credit Omarchy (https://omarchy.org,
 https://github.com/basecamp/omarchy); not affiliated.
 
-## Pending work for Windows (read this first on a Windows machine)
+## Feature parity
 
-The macOS app gained features and fixes the Windows app doesn't have yet. They're listed with file pointers
-and suggested WinUI approaches in **`docs/macos-to-windows.md`**. Start with its item 0: Windows app edits
-for the default-themes feature were made on the Mac and have **never been compiled or run** (WinUI doesn't
-build on macOS). Then: gallery sections for default themes, the large wallpaper preview, "View on GitHub" with
-the GitHub mark, downloads that survive navigation, the theme fill color around Fit/Center, dry-run/data-dir
-test switches, error logging and opt-in live checks. Remove items from that file as they're done.
+As of Sep 27, 2026 the two apps are at parity: the Windows app gained everything the macOS app added (default
+themes in their own gallery section, the large wallpaper preview, "View on GitHub" with the GitHub mark,
+downloads that survive navigation, the theme fill color around Fit/Center, dry-run/data-dir switches, logging and
+opt-in live checks). When one app gains a feature, list it for the other in a `docs/<from>-to-<to>.md` with file
+pointers (as `docs/macos-to-windows.md` did; it was deleted once empty), and say so here.
 
 ## Decisions already made (don't reopen)
 
@@ -92,6 +91,7 @@ Port behaviour, not code. The equivalents on Windows:
 | Palette parsers | `…/Core/Palettes/` |
 | Theme resolution (palette priority, wallpapers, light.mode) | `…/Core/Themes/ThemeResolver.cs` |
 | Staged, atomic theme download | `…/Core/Storage/ThemeStore.cs` |
+| Downloads that outlive the page; shared in-flight lookups | `…/Core/Storage/ThemeDownloads.cs`, `…/Core/Themes/ThemeDetailsService.cs` |
 | Apply orchestration: snapshot-before-first-apply, per-step gating, partial failure | `…/Core/Theming/ThemeApplier.cs` |
 | User-facing apply messages | `…/Core/Theming/ApplySummary.cs` |
 | OS backend | `windows/src/OmarchyThemes.Platform.Windows/WindowsDesktopBackend.cs` |
@@ -181,10 +181,13 @@ Gotchas found:
 
 ## Verifying UI on each platform
 
-- **Windows** (what was done): launch the built exe, drive it with UI Automation from PowerShell
+- **Windows**: launch the built exe **with `OMARCHY_THEMES_DRY_RUN=1` and `OMARCHY_THEMES_DATA_DIR=<temp>`**
+  (the title bar then shows "Dry run · test data folder"), drive it with UI Automation from PowerShell
   (`System.Windows.Automation`: Invoke/SelectionItem/Value patterns, no focus stealing), and capture with
-  `PrintWindow(PW_RENDERFULLCONTENT)`. Give buttons whose content isn't plain text an
-  `AutomationProperties.Name`; this was a real accessibility bug found that way.
+  `PrintWindow(PW_RENDERFULLCONTENT)`. With both switches Apply and Restore can be exercised end to end; have
+  the script check for the badge (a UIA element with that name) before pressing them, and read the real
+  desktop state (read-only) before and after to prove nothing changed. Give buttons whose content isn't plain
+  text an `AutomationProperties.Name`; this was a real accessibility bug found that way.
 - **macOS** (to set up): build with `xcodebuild`, launch the `.app`, and capture the window with
   `screencapture -l <windowID>` (needs Screen Recording permission for the terminal). Use XCUITest or the
   Accessibility API for scripted navigation. The same rule applies: open dialogs and cancel, never apply.
@@ -194,6 +197,26 @@ Gotchas found:
 ```bash
 cd windows
 dotnet build OmarchyThemes.sln
-dotnet test          # Core (129) + Windows backend (22) tests
+dotnet test          # Core (136) + Windows backend (24) tests; 5 live checks skipped
 dotnet run --project src/OmarchyThemes.App
 ```
+
+Live, read-only checks: `$env:OMATHEME_LIVE='1'; dotnet test --filter Category=Live` (omarchy.org, default
+themes, Tokyo Night/Aetheria/Vulkanite, one real download with byte progress, reading the current wallpaper and
+tracked registry values). Mind the GitHub rate limit.
+
+Windows gotchas found:
+
+- **`ItemsRepeater` doesn't set `DataContext` for compiled (`x:Bind`) templates**, so a click handler reading
+  `sender.DataContext` gets null and silently does nothing. Template elements carry their item in
+  `Tag="{x:Bind}"` and handlers use `Ui.ItemOf<T>(sender)`.
+- A solution build (Platform=x64) and a project build used to write to different `bin` folders, so `dotnet run`
+  could launch a stale exe. `AppendPlatformToOutputPath=false` in the app project fixes that. A running app
+  locks its output: stop it before building.
+- The `TitleBar` control keeps the window caption in sync with its own `Title`; put extra text (the dry-run
+  badge) in `Subtitle`, not `Window.Title`.
+- The download in this environment is fast (tens of MB/s), so "leave the page mid-download" can't be checked
+  through the UI; `ThemeDownloadsTests` covers it deterministically with gated fakes.
+- xUnit runs tests under a synchronization context, so `DownloadOperation` posts `PropertyChanged`; tests read
+  `Status` (set synchronously) at gated points rather than collecting intermediate events.
+- Logs: `%LOCALAPPDATA%\OmarchyThemes\logs\omarchy-themes-yyyyMMdd.log` (or the test data folder).

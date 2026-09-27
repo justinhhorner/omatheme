@@ -17,6 +17,9 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
 
     <Platforms>x64;ARM64</Platforms>
+    <!-- One output folder whether built via the solution (Platform=x64) or the project; the RID subfolder
+         already separates architectures. Otherwise `dotnet run` can launch a stale build. -->
+    <AppendPlatformToOutputPath>false</AppendPlatformToOutputPath>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <!-- Default to the host architecture so plain `dotnet build`/`dotnet run` work. -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
@@ -33,6 +36,8 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
   </ItemGroup>
 
   <ItemGroup>

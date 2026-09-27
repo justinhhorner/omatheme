@@ -11,7 +11,10 @@ public sealed partial class ThemeDetailPage : Page
     public ThemeDetailPage()
     {
         InitializeComponent();
+        InitializePreview();
     }
+
+    partial void InitializePreview();
 
     public ThemeDetailViewModel ViewModel { get; } = App.GetService<ThemeDetailViewModel>();
 

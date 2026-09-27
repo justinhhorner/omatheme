@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
+using OmarchyThemes.App.Helpers;
 using OmarchyThemes.App.ViewModels;
 
 namespace OmarchyThemes.App.Views;
@@ -21,9 +22,9 @@ public sealed partial class GalleryPage : Page
         await ViewModel.EnsureLoadedAsync();
     }
 
-    private void ThemesView_ItemInvoked(ItemsView sender, ItemsViewItemInvokedEventArgs args)
+    private void Card_Click(object sender, RoutedEventArgs e)
     {
-        if (args.InvokedItem is ThemeCardViewModel card)
+        if (Ui.ItemOf<ThemeCardViewModel>(sender) is { } card)
             ViewModel.Open(card);
     }
 

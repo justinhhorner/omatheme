@@ -16,13 +16,19 @@ public sealed record ApplyOptions
 /// <summary>What to apply. Built from a downloaded theme, so no network is involved.</summary>
 public sealed record ApplyRequest(string ThemeName, string? WallpaperPath, AppearanceMode Mode, RgbColor? Accent, ApplyOptions Options)
 {
+    /// <summary>The theme's background color, used as the desktop fill around Fit/Center wallpapers.</summary>
+    public RgbColor? Background { get; init; }
+
     /// <param name="wallpaperFile">One of <see cref="InstalledTheme.Wallpapers"/>; defaults to the first.</param>
     public static ApplyRequest FromInstalled(InstalledTheme theme, string? wallpaperFile, ApplyOptions options)
     {
         var file = wallpaperFile is not null && theme.Wallpapers.Contains(wallpaperFile)
             ? wallpaperFile
             : theme.Wallpapers.FirstOrDefault();
-        return new ApplyRequest(theme.Name, file is null ? null : theme.WallpaperPath(file), theme.Mode, theme.Palette?.Accent, options);
+        return new ApplyRequest(theme.Name, file is null ? null : theme.WallpaperPath(file), theme.Mode, theme.Palette?.Accent, options)
+        {
+            Background = theme.Palette?.Background,
+        };
     }
 }
 
@@ -131,7 +137,7 @@ public sealed class ThemeApplier
                 {
                     if (!File.Exists(request.WallpaperPath))
                         throw new FileNotFoundException("The wallpaper file is missing. Try downloading the theme again.", request.WallpaperPath);
-                    return _backend.SetWallpaperAsync(request.WallpaperPath!, options.Fit, ct);
+                    return _backend.SetWallpaperAsync(request.WallpaperPath!, options.Fit, request.Background, ct);
                 }, progress, ct).ConfigureAwait(false));
 
             results.Add(await RunStepAsync(ApplyStep.AppearanceMode, options.AppearanceMode, DesktopCapabilities.AppearanceMode,

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using OmarchyThemes.App.Services;
 using OmarchyThemes.App.ViewModels;
@@ -31,21 +32,29 @@ public partial class App : Application
 
     private static ServiceProvider ConfigureServices()
     {
-        var paths = AppPaths.Default();
+        var environment = AppEnvironment.FromProcess();
+        var paths = environment.Paths;
         var services = new ServiceCollection();
 
+        services.AddSingleton(environment);
         services.AddSingleton(paths);
+        services.AddLogging(logging => logging
+            .SetMinimumLevel(LogLevel.Information)
+            .AddDebug()
+            .AddProvider(new FileLoggerProvider(paths.LogsDir)));
         services.AddSingleton(_ => new HttpCache(HttpClients.CreateApi(), paths.CacheDir));
         services.AddSingleton(sp => new CatalogService(sp.GetRequiredService<HttpCache>(), github: sp.GetRequiredService<GitHubClient>()));
         services.AddSingleton(sp => new GitHubClient(sp.GetRequiredService<HttpCache>(), StorageInfo.GitHubToken()));
         services.AddSingleton<ThemeResolver>();
         services.AddSingleton<ThemeDetailsService>();
+        services.AddSingleton<ThemeDownloads>();
         services.AddSingleton(_ => new ThemeStore(paths, new HttpDownloader(HttpClients.CreateDownloads())));
         services.AddSingleton(_ => new SettingsStore(paths));
 
         // Nothing touches the desktop until the user explicitly applies a theme.
-        services.AddSingleton<IDesktopBackend>(_ =>
-            WindowsDesktopBackend.CreateDefault(Path.Combine(paths.Root, "original-desktop")));
+        services.AddSingleton<IDesktopBackend>(_ => environment.IsDryRun
+            ? new DryRunDesktopBackend()
+            : WindowsDesktopBackend.CreateDefault(Path.Combine(paths.Root, "original-desktop")));
         services.AddSingleton<ISnapshotStore>(_ => new FileSnapshotStore(paths));
         services.AddSingleton<ThemeApplier>();
         services.AddSingleton<ApplyService>();
@@ -63,6 +72,10 @@ public partial class App : Application
     {
         GetService<AppPaths>().EnsureCreated();
         GetService<ThemeStore>().CleanUpStaging();
+
+        var environment = GetService<AppEnvironment>();
+        GetService<ILogger<App>>().LogInformation("Started {Version}; data folder {Root}{DryRun}",
+            typeof(App).Assembly.GetName().Version, GetService<AppPaths>().Root, environment.IsDryRun ? "; DRY RUN" : "");
 
         var showWelcome = !GetService<SettingsStore>().Load().WelcomeSeen;
         MainWindow = new MainWindow(showWelcome);

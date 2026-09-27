@@ -44,6 +44,7 @@
         </DataTemplate>
     </Page.Resources>
 
+    <Grid>
     <ScrollViewer>
         <Grid MaxWidth="{StaticResource PageMaxWidth}" Margin="{StaticResource PageMargin}">
             <Grid.RowDefinitions>
@@ -94,16 +95,11 @@
                         Text="{x:Bind ViewModel.Name, Mode=OneWay}"
                         TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <HyperlinkButton
-                            Margin="-12,0,0,0"
-                            AutomationProperties.Name="Open the theme's GitHub repository"
-                            NavigateUri="{x:Bind ViewModel.RepoUri, Mode=OneWay}"
-                            ToolTipService.ToolTip="Open on GitHub">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="12" Glyph="&#xE8A7;" />
-                                <TextBlock Text="{x:Bind ViewModel.RepoDisplay, Mode=OneWay}" />
-                            </StackPanel>
-                        </HyperlinkButton>
+                        <TextBlock
+                            Margin="0,0,4,0"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{x:Bind ViewModel.RepoDisplay, Mode=OneWay}" />
                         <Border Style="{StaticResource BadgeStyle}" Visibility="{x:Bind h:Ui.VisibleIf(ViewModel.ModeText), Mode=OneWay}">
                             <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind ViewModel.ModeText, Mode=OneWay}" />
                         </Border>
@@ -146,28 +142,35 @@
                         Command="{x:Bind ViewModel.DownloadCommand}"
                         Content="Download"
                         Visibility="{x:Bind h:Ui.Collapsed(ViewModel.IsInstalled), Mode=OneWay}" />
-                    <Button AutomationProperties.Name="More options" ToolTipService.ToolTip="More options">
+                    <Button
+                        Padding="12,5"
+                        AutomationProperties.Name="View on GitHub"
+                        Click="OpenRepo_Click"
+                        ToolTipService.ToolTip="Open this theme's repository on GitHub">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <!-- GitHub's mark (Octicons "mark-github", MIT); used only to link to GitHub. -->
+                            <PathIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Center"
+                                Data="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" />
+                            <TextBlock Text="View on GitHub" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        AutomationProperties.Name="More options"
+                        ToolTipService.ToolTip="More options"
+                        Visibility="{x:Bind ViewModel.IsInstalled, Mode=OneWay}">
                         <FontIcon FontSize="16" Glyph="&#xE712;" />
                         <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                <MenuFlyoutItem Click="OpenRepo_Click" Text="Open on GitHub">
-                                    <MenuFlyoutItem.Icon>
-                                        <FontIcon Glyph="&#xE8A7;" />
-                                    </MenuFlyoutItem.Icon>
-                                </MenuFlyoutItem>
-                                <MenuFlyoutItem
-                                    Command="{x:Bind ViewModel.DownloadCommand}"
-                                    Text="Download again"
-                                    Visibility="{x:Bind ViewModel.IsInstalled, Mode=OneWay}">
+                                <MenuFlyoutItem Command="{x:Bind ViewModel.DownloadCommand}" Text="Download again">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE72C;" />
                                     </MenuFlyoutItem.Icon>
                                 </MenuFlyoutItem>
-                                <MenuFlyoutSeparator Visibility="{x:Bind ViewModel.IsInstalled, Mode=OneWay}" />
-                                <MenuFlyoutItem
-                                    Click="Remove_Click"
-                                    Text="Remove download"
-                                    Visibility="{x:Bind ViewModel.IsInstalled, Mode=OneWay}">
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Click="Remove_Click" Text="Remove download">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE74D;" />
                                     </MenuFlyoutItem.Icon>
@@ -247,15 +250,32 @@
                             Stretch="Uniform" />
                     </Border>
 
-                    <TextBlock
-                        Style="{StaticResource SectionHeaderTextStyle}"
-                        Text="{x:Bind ViewModel.WallpapersHeader, Mode=OneWay}"
-                        Visibility="{x:Bind ViewModel.HasWallpapers, Mode=OneWay}" />
-                    <TextBlock
-                        Margin="1,0,0,8"
-                        Style="{StaticResource SecondaryTextStyle}"
-                        Text="Pick the wallpaper to use when applying this theme."
-                        Visibility="{x:Bind ViewModel.HasWallpapers, Mode=OneWay}" />
+                    <Grid Visibility="{x:Bind ViewModel.HasWallpapers, Mode=OneWay}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderTextStyle}" Text="{x:Bind ViewModel.WallpapersHeader, Mode=OneWay}" />
+                            <TextBlock
+                                Margin="1,0,0,8"
+                                Style="{StaticResource SecondaryTextStyle}"
+                                Text="Pick the wallpaper to use when applying this theme. Double-click one to see it large." />
+                        </StackPanel>
+                        <Button
+                            x:Name="PreviewButton"
+                            Grid.Column="1"
+                            Margin="12,0,0,8"
+                            VerticalAlignment="Bottom"
+                            AutomationProperties.Name="Preview the selected wallpaper"
+                            Click="PreviewButton_Click"
+                            ToolTipService.ToolTip="See the selected wallpaper large">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontSize="14" Glyph="&#xE740;" />
+                                <TextBlock Text="Preview" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
                     <GridView
                         x:Name="WallpaperGrid"
                         IsItemClickEnabled="False"
@@ -268,15 +288,47 @@
                                 <Grid
                                     Width="208"
                                     AutomationProperties.Name="{x:Bind FileName}"
+                                    Background="Transparent"
+                                    DoubleTapped="WallpaperItem_DoubleTapped"
+                                    Tag="{x:Bind}"
+                                    PointerEntered="WallpaperItem_PointerEntered"
+                                    PointerExited="WallpaperItem_PointerExited"
                                     RowSpacing="4"
                                     ToolTipService.ToolTip="{x:Bind FileName}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="117" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
+                                    <Grid.ContextFlyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Click="PreviewMenu_Click" Tag="{x:Bind}" Text="Preview">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE740;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </Grid.ContextFlyout>
                                     <Border Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" CornerRadius="4">
                                         <Image Source="{x:Bind Thumbnail}" Stretch="UniformToFill" />
                                     </Border>
+                                    <!-- Appears on hover; keyboard users use the context menu or the Preview button. -->
+                                    <Button
+                                        x:Name="ExpandButton"
+                                        Width="32"
+                                        Height="32"
+                                        Margin="6"
+                                        Padding="0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        AutomationProperties.Name="{x:Bind PreviewLabel}"
+                                        Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
+                                        Click="ExpandButton_Click"
+                                        Tag="{x:Bind}"
+                                        IsTabStop="False"
+                                        Opacity="0"
+                                        ToolTipService.ToolTip="Preview">
+                                        <FontIcon FontSize="14" Glyph="&#xE740;" />
+                                    </Button>
                                     <TextBlock
                                         Grid.Row="1"
                                         Margin="2,0"
@@ -344,4 +396,95 @@
             </Grid>
         </Grid>
     </ScrollViewer>
+
+    <!--
+        Large wallpaper preview, over the theme page (not a new window). Click outside the bar or press Esc
+        to close; Left/Right move between wallpapers. Focus moves in on open and back to the thumbnail on close.
+    -->
+    <Grid
+        x:Name="PreviewOverlay"
+        AutomationProperties.Name="Wallpaper preview"
+        Background="{ThemeResource SmokeFillColorDefaultBrush}"
+        KeyDown="PreviewOverlay_KeyDown"
+        TabFocusNavigation="Cycle"
+        Tapped="PreviewOverlay_Tapped"
+        Visibility="{x:Bind ViewModel.IsPreviewOpen, Mode=OneWay}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Image
+            x:Name="PreviewImage"
+            Margin="32,32,32,16"
+            AutomationProperties.Name="{x:Bind ViewModel.PreviewItem.FileName, Mode=OneWay}"
+            ImageFailed="PreviewImage_ImageFailed"
+            ImageOpened="PreviewImage_ImageOpened"
+            Source="{x:Bind ViewModel.PreviewItem.Preview, Mode=OneWay}"
+            Stretch="Uniform" />
+        <ProgressRing
+            x:Name="PreviewSpinner"
+            Width="48"
+            Height="48"
+            IsActive="False" />
+        <TextBlock
+            x:Name="PreviewFailedText"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Foreground="White"
+            Text="Couldn't load this wallpaper."
+            Visibility="Collapsed" />
+
+        <Border
+            Grid.Row="1"
+            Margin="24,0,24,24"
+            Padding="8"
+            HorizontalAlignment="Center"
+            Background="{ThemeResource AcrylicBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource OverlayCornerRadius}"
+            Tapped="PreviewBar_Tapped">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button
+                    AutomationProperties.Name="Previous wallpaper"
+                    Command="{x:Bind ViewModel.PreviewPreviousCommand}"
+                    ToolTipService.ToolTip="Previous (Left arrow)">
+                    <FontIcon FontSize="14" Glyph="&#xE76B;" />
+                </Button>
+                <Button
+                    x:Name="PreviewNextButton"
+                    AutomationProperties.Name="Next wallpaper"
+                    Command="{x:Bind ViewModel.PreviewNextCommand}"
+                    ToolTipService.ToolTip="Next (Right arrow)">
+                    <FontIcon FontSize="14" Glyph="&#xE76C;" />
+                </Button>
+                <StackPanel
+                    MinWidth="180"
+                    MaxWidth="320"
+                    Margin="8,0"
+                    VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind ViewModel.PreviewItem.FileName, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="{x:Bind ViewModel.PreviewPositionText, Mode=OneWay}" />
+                </StackPanel>
+                <Button
+                    MinWidth="150"
+                    Command="{x:Bind ViewModel.UsePreviewedWallpaperCommand}"
+                    Content="{x:Bind ViewModel.PreviewUseText, Mode=OneWay}"
+                    IsEnabled="{x:Bind h:Ui.Not(ViewModel.PreviewIsSelected), Mode=OneWay}"
+                    Style="{StaticResource AccentButtonStyle}"
+                    ToolTipService.ToolTip="Use this wallpaper when applying the theme" />
+                <Button
+                    AutomationProperties.Name="Close preview"
+                    Command="{x:Bind ViewModel.ClosePreviewCommand}"
+                    ToolTipService.ToolTip="Close (Esc)">
+                    <FontIcon FontSize="14" Glyph="&#xE711;" />
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+    </Grid>
 </Page>

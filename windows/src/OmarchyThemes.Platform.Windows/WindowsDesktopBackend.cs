@@ -42,6 +42,7 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
     private const string MonitorPrefix = "monitor:";
     private const string CopyPrefix = "monitor-copy:";
     private const string FitKey = "wallpaper-fit";
+    private const string BackgroundKey = "wallpaper-background";
 
     private readonly IWallpaperApi _wallpaper;
     private readonly IRegistryAccess _registry;
@@ -83,6 +84,9 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
         var state = await _wallpaper.GetAsync().ConfigureAwait(false);
         if (state.Fit is { } fit)
             values[FitKey] = fit.ToString();
+        // The fill color around Fit/Center wallpapers is system-wide, so it's restored too.
+        if (state.Background is { } background)
+            values[BackgroundKey] = background.ToHex();
 
         // Keep a private copy of each original wallpaper: Windows' own copy (TranscodedWallpaper)
         // is overwritten when we set a new one, and the user may delete the original file later.
@@ -136,15 +140,16 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
         if (monitors.Count > 0)
         {
             WallpaperFit? fit = snapshot.Values.TryGetValue(FitKey, out var f) && Enum.TryParse<WallpaperFit>(f, out var parsed) ? parsed : null;
-            await _wallpaper.RestoreAsync(new WallpaperState(monitors, fit)).ConfigureAwait(false);
+            RgbColor? background = snapshot.Values.TryGetValue(BackgroundKey, out var b) && RgbColor.TryParse(b, out var color) ? color : null;
+            await _wallpaper.RestoreAsync(new WallpaperState(monitors, fit, background)).ConfigureAwait(false);
         }
     }
 
-    public async Task SetWallpaperAsync(string imagePath, WallpaperFit fit, CancellationToken ct = default)
+    public async Task SetWallpaperAsync(string imagePath, WallpaperFit fit, RgbColor? fillColor, CancellationToken ct = default)
     {
         var usable = await _images.EnsureWallpaperFormatAsync(imagePath, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
-        await _wallpaper.SetAsync(usable, fit).ConfigureAwait(false);
+        await _wallpaper.SetAsync(usable, fit, fillColor).ConfigureAwait(false);
     }
 
     public Task SetAppearanceModeAsync(AppearanceMode mode, CancellationToken ct = default)

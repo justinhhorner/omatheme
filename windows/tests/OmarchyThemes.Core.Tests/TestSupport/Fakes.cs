@@ -135,8 +135,8 @@ internal sealed class FakeDesktopBackend : IDesktopBackend
         return Record("restore");
     }
 
-    public Task SetWallpaperAsync(string imagePath, WallpaperFit fit, CancellationToken ct = default) =>
-        Record($"wallpaper:{System.IO.Path.GetFileName(imagePath)}:{fit}");
+    public Task SetWallpaperAsync(string imagePath, WallpaperFit fit, RgbColor? fillColor, CancellationToken ct = default) =>
+        Record($"wallpaper:{System.IO.Path.GetFileName(imagePath)}:{fit}" + (fillColor is { } c ? $":{c}" : ""));
 
     public Task SetAppearanceModeAsync(AppearanceMode mode, CancellationToken ct = default) =>
         Record($"mode:{mode}");
