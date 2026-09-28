@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import Testing
 @testable import OmarchyThemesKit
+import OmarchyThemesTestSupport
 
 /// The saved files match docs/data-format.md, the format shared with the Windows app. The Windows
 /// `DataFormatTests` check the same fixtures (fixtures/data), so the two apps write identical files.

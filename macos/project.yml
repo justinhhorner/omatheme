@@ -36,6 +36,8 @@ targets:
         product: OmarchyThemesKit
       - package: OmarchyThemesKit
         product: OmarchyThemesMac
+      - package: OmarchyThemesKit
+        product: OmarchyThemesStores
     settings:
       base:
         PRODUCT_NAME: Omarchy Themes
@@ -50,3 +52,4 @@ targets:
       testTargets:
         - package: OmarchyThemesKit/OmarchyThemesKitTests
         - package: OmarchyThemesKit/OmarchyThemesMacTests
+        - package: OmarchyThemesKit/OmarchyThemesStoresTests

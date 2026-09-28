@@ -1,5 +1,6 @@
 import Testing
 @testable import OmarchyThemesKit
+import OmarchyThemesTestSupport
 
 struct PaletteParserTests {
     @Test func parsesTerminalStyleColorsToml() throws {

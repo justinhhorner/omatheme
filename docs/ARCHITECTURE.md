@@ -27,7 +27,9 @@ macos/
   OmarchyThemesKit/                Swift package
     Sources/OmarchyThemesKit/      no AppKit: catalog, GitHub, palettes, store, ThemeApplier
     Sources/OmarchyThemesMac/      DesktopBackend for macOS (NSWorkspace + ImageIO)
-    Tests/                         Swift Testing, platform-neutral + backend against a fake
+    Sources/OmarchyThemesStores/   the app's observable stores, built from injectable services
+    Sources/OmarchyThemesTestSupport/  fakes and fixtures shared by the tests
+    Tests/                         Swift Testing: Kit, backend and stores, all against fakes
   tools/generate-app-icon.swift    renders the asset-catalog icon set from design/AppIcon.svg
 fixtures/                          test fixtures shared by the Windows and Swift tests
 docs/ARCHITECTURE.md               this file
@@ -94,8 +96,17 @@ in the Help menu.
   fallback), `ThemeResolver`, `ThemeStore`, `ThemeApplier` and `ApplySummary`.
 - **OmarchyThemesMac** implements `DesktopBackend` (`MacDesktopBackend`) behind a `WallpaperAPI`
   protocol, so it's tested without changing the desktop.
-- **App** holds an `@Observable` `AppModel` (services, catalog state, downloads that carry on
-  when you navigate away) and the views.
+- **OmarchyThemesStores** holds the app's state and logic as `@MainActor` `@Observable` stores, each
+  with one job: `CatalogStore` (entries, refresh, notices), `ThemeLibrary` (downloaded themes, GitHub
+  lookups, downloads that carry on when you navigate away), `DesktopStore` (apply, the current theme,
+  restore), `TerminalStore` (exporters and the selected terminal), `Preferences` (settings, welcome) and
+  `Banners` (result messages). `AppStores` builds them from an `AppServices` struct; `AppServices.live()`
+  wires up the real Mac (and the test switches), and tests pass fakes, so the stores are covered by
+  `swift test` (`OmarchyThemesStoresTests`).
+- **OmarchyThemesTestSupport** has the fakes and fixtures shared by the test targets.
+- **App** is the views, plus a thin `AppModel` (the stores, the thumbnail loader, sidebar navigation
+  and Clear Cache). `appEnvironment(_:)` puts each store in the SwiftUI environment, so a view depends
+  only on the stores it uses.
 
 The UI matches Windows feature for feature, in macOS form. The gallery opens with a **Current Theme**
 card when the theme on the desktop is still downloaded (hidden while searching, shown even if the
@@ -344,6 +355,13 @@ apply summaries), including the terminal color mapping (`TerminalColorsTests`) a
 current wallpaper only when the wallpaper step applied (`AfterApplyTests`), each with the same cases as
 on Windows. It also covers the strict TOML reader (inline tables, quoted and dotted keys, escapes,
 multi-line strings, arrays) and checks that concurrent applies never interleave.
+
+**Stores (`OmarchyThemesStoresTests`)** build the real stores from fake services (routed HTTP, a
+downloader that writes the URL into each file, a recording desktop backend, in-memory terminals): catalog
+load, cache freshness, shared refreshes, offline and missing-default-theme notices; downloads (shared,
+failed, cancelled), memoized lookups and Clear Cache, removal; apply, one apply at a time, switching the
+current wallpaper (wallpaper only, saved fit), restore and failed restore, fit fallback; terminal
+selection, add/remove, manual removal, failures, and refreshing old downloads' bright colors.
 
 **macOS backend (`OmarchyThemesMacTests`)**, against an in-memory `WallpaperAPI`:
 

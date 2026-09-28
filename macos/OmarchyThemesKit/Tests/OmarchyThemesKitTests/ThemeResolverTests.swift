@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import OmarchyThemesKit
+import OmarchyThemesTestSupport
 
 struct ThemeResolverTests {
     static let treeURL = "https://api.github.com/repos/o/r/git/trees/HEAD?recursive=1"

@@ -1,10 +1,13 @@
 import OmarchyThemesKit
+import OmarchyThemesStores
 import SwiftUI
 
 /// The theme on the desktop, above the gallery: what it is, a way to its page, and its wallpapers,
 /// any of which can be set with one click.
 struct CurrentThemeCard: View {
-    @Environment(AppModel.self) private var model
+    @Environment(Banners.self) private var banners
+    @Environment(CatalogStore.self) private var catalog
+    @Environment(DesktopStore.self) private var desktop
     let theme: InstalledTheme
 
     private var details: String {
@@ -40,7 +43,7 @@ struct CurrentThemeCard: View {
         .padding(16)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.08)))
-        .animation(.default, value: model.banners[.currentTheme])
+        .animation(.default, value: banners[.currentTheme])
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Current theme, \(theme.name)")
         .accessibilityIdentifier("currentThemeCard")
@@ -58,7 +61,7 @@ struct CurrentThemeCard: View {
             if !strip.isEmpty {
                 colorStrip
             }
-            NavigationLink(value: model.entry(for: theme)) {
+            NavigationLink(value: catalog.entry(for: theme)) {
                 Text("View Theme")
             }
             .buttonStyle(.bordered)
@@ -86,11 +89,11 @@ struct CurrentThemeCard: View {
                     CurrentWallpaperTile(
                         url: theme.wallpaperURL(file),
                         name: file,
-                        isCurrent: file == model.currentWallpaper,
-                        isApplying: file == model.settingWallpaper,
-                        isEnabled: model.applyingSlug == nil
+                        isCurrent: file == desktop.currentWallpaper,
+                        isApplying: file == desktop.settingWallpaper,
+                        isEnabled: desktop.applyingSlug == nil
                     ) {
-                        Task { await model.setCurrentWallpaper(file) }
+                        Task { await desktop.setCurrentWallpaper(file) }
                     }
                 }
             }

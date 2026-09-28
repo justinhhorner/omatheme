@@ -1,9 +1,14 @@
 import OmarchyThemesKit
+import OmarchyThemesStores
 import SwiftUI
 
 /// Downloaded themes, with one-click Apply using the saved defaults from Settings.
 struct DownloadedView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Banners.self) private var banners
+    @Environment(CatalogStore.self) private var catalog
+    @Environment(ThemeLibrary.self) private var library
+    @Environment(DesktopStore.self) private var desktop
     let onOpen: (CatalogEntry) -> Void
 
     @State private var applyTarget: ApplyTarget?
@@ -14,7 +19,7 @@ struct DownloadedView: View {
     }
 
     private var subtitle: String {
-        switch model.installed.count {
+        switch library.installed.count {
         case 0: ""
         case 1: "1 theme · works offline"
         case let n: "\(n) themes · work offline"
@@ -25,14 +30,14 @@ struct DownloadedView: View {
         List {
             ContextBanner(context: .downloaded)
                 .listRowSeparator(.hidden)
-            ForEach(model.installed) { theme in
+            ForEach(library.installed) { theme in
                 row(theme)
             }
         }
         .listStyle(.inset)
-        .animation(.default, value: model.installed)
+        .animation(.default, value: library.installed)
         .overlay {
-            if model.installed.isEmpty {
+            if library.installed.isEmpty {
                 ContentUnavailableView {
                     Label("No Downloaded Themes", systemImage: "arrow.down.circle")
                 } description: {
@@ -47,37 +52,37 @@ struct DownloadedView: View {
         .sheet(item: $applyTarget) { target in
             ApplySheet(theme: target.theme, wallpaperFile: target.wallpaperFile) { options in
                 Task {
-                    let summary = await model.apply(target.theme, wallpaperFile: target.wallpaperFile, options: options)
-                    model.banners[.downloaded] = Banner(summary)
+                    let summary = await desktop.apply(target.theme, wallpaperFile: target.wallpaperFile, options: options)
+                    banners[.downloaded] = Banner(summary)
                 }
             }
         }
         .confirmationDialog("Remove \(removing?.name ?? "theme")?", isPresented: isConfirmingRemoval, presenting: removing) { theme in
             Button("Remove Download", role: .destructive) {
-                model.banners[.downloaded] = model.remove(theme)
+                banners[.downloaded] = library.remove(theme)
             }
         } message: { theme in
-            RemoveDownloadMessage(isOnDesktop: model.activeSlug == theme.slug)
+            RemoveDownloadMessage(isOnDesktop: desktop.activeSlug == theme.slug)
         }
     }
 
     private func row(_ theme: InstalledTheme) -> some View {
         DownloadedRow(
             theme: theme,
-            isActive: model.activeSlug == theme.slug,
-            isApplying: model.applyingSlug == theme.slug,
-            canApply: model.applyingSlug == nil,
-            onOpen: { onOpen(model.entry(for: theme)) },
+            isActive: desktop.activeSlug == theme.slug,
+            isApplying: desktop.applyingSlug == theme.slug,
+            canApply: desktop.applyingSlug == nil,
+            onOpen: { onOpen(catalog.entry(for: theme)) },
             onApply: { Task { await applyWithDefaults(theme) } },
             onApplyWithOptions: {
-                applyTarget = ApplyTarget(theme: theme, wallpaperFile: model.preferredWallpaper(for: theme))
+                applyTarget = ApplyTarget(theme: theme, wallpaperFile: desktop.preferredWallpaper(for: theme))
             },
             onRemove: { removing = theme })
     }
 
     private func applyWithDefaults(_ theme: InstalledTheme) async {
-        let summary = await model.applyWithDefaults(theme)
-        model.banners[.downloaded] = Banner(summary)
+        let summary = await desktop.applyWithDefaults(theme)
+        banners[.downloaded] = Banner(summary)
     }
 }
 

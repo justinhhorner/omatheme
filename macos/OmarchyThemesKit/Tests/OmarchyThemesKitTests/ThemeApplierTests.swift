@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import OmarchyThemesKit
+import OmarchyThemesTestSupport
 
 struct ThemeApplierTests {
     let dir = TempDir()

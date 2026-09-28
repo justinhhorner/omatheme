@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import OmarchyThemesKit
+import OmarchyThemesTestSupport
 
 struct AppPathsTests {
     let paths = AppPaths(root: FileManager.default.temporaryDirectory.appending(path: "omatheme-tests"))

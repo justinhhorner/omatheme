@@ -9,7 +9,7 @@ struct OmarchyThemesApp: App {
     var body: some Scene {
         Window("Omarchy Themes", id: WindowID.main) {
             ContentView()
-                .environment(model)
+                .appEnvironment(model)
                 .frame(minWidth: 820, minHeight: 540)
         }
         .defaultSize(width: 1180, height: 800)
@@ -17,7 +17,7 @@ struct OmarchyThemesApp: App {
 
         Settings {
             SettingsView()
-                .environment(model)
+                .appEnvironment(model)
         }
     }
 }
@@ -48,15 +48,15 @@ struct AppCommands: Commands {
             Button("Downloaded") { model.sidebarSelection = .downloaded }
                 .keyboardShortcut("2")
             Divider()
-            Button("Refresh Themes") { Task { await model.refreshCatalog() } }
+            Button("Refresh Themes") { Task { await model.stores.catalog.refresh() } }
                 .keyboardShortcut("r")
-                .disabled(model.isRefreshing)
+                .disabled(model.stores.catalog.isRefreshing)
             Divider()
         }
 
         CommandGroup(replacing: .help) {
             Button("Show Welcome Screen") {
-                model.showWelcome = true
+                model.stores.preferences.showWelcome = true
                 openWindow(id: WindowID.main)
             }
             Divider()

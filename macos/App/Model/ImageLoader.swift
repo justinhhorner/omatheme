@@ -60,9 +60,14 @@ final class ImageLoader: Sendable {
     }
 }
 
+extension EnvironmentValues {
+    /// Set by `appEnvironment(_:)`; without one, thumbnails show their placeholder.
+    @Entry var imageLoader: ImageLoader?
+}
+
 /// An image from disk or the web, shown as a thumbnail with a placeholder while it loads.
 struct ThumbnailImage: View {
-    @Environment(AppModel.self) private var model
+    @Environment(\.imageLoader) private var loader
     let url: URL?
     var maxPixelSize = 800
     var contentMode: ContentMode = .fill
@@ -96,8 +101,8 @@ struct ThumbnailImage: View {
     private func load() async {
         image = nil
         failed = false
-        guard let url else { return }
-        let loaded = await model.images.thumbnail(for: url, maxPixelSize: maxPixelSize)
+        guard let url, let loader else { return }
+        let loaded = await loader.thumbnail(for: url, maxPixelSize: maxPixelSize)
         withAnimation(.easeOut(duration: 0.15)) {
             image = loaded
             failed = loaded == nil

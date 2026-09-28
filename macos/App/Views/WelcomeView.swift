@@ -1,8 +1,9 @@
+import OmarchyThemesStores
 import SwiftUI
 
 /// Shown on first launch (and from Settings or the Help menu).
 struct WelcomeView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(Preferences.self) private var preferences
 
     /// Markdown, for the links.
     private let credits: LocalizedStringKey = """
@@ -50,7 +51,7 @@ struct WelcomeView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
 
-            Button("Browse Themes") { model.dismissWelcome() }
+            Button("Browse Themes") { preferences.dismissWelcome() }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)

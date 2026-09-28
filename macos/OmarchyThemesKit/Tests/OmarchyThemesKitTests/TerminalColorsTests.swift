@@ -1,5 +1,6 @@
 import Testing
 @testable import OmarchyThemesKit
+import OmarchyThemesTestSupport
 
 /// Mirrors the Windows `TerminalColorsTests`, so both apps export the same colors.
 struct TerminalColorsTests {

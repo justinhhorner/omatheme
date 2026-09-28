@@ -1,4 +1,5 @@
 import OmarchyThemesKit
+import OmarchyThemesStores
 import SwiftUI
 
 /// A downloaded theme to show the Apply sheet for, with the wallpaper to preselect.
@@ -11,7 +12,8 @@ struct ApplyTarget: Identifiable {
 /// Per-aspect Apply choices. macOS only lets apps set the wallpaper, so light/dark and accent are
 /// shown disabled with the reason (and a way to change them in System Settings).
 struct ApplySheet: View {
-    @Environment(AppModel.self) private var model
+    @Environment(DesktopStore.self) private var desktop
+    @Environment(Preferences.self) private var preferences
     @Environment(\.dismiss) private var dismiss
 
     let theme: InstalledTheme
@@ -23,13 +25,13 @@ struct ApplySheet: View {
     @State private var remember = false
     @State private var loaded = false
 
-    private var canWallpaper: Bool { model.capabilities.contains(.wallpaper) && !theme.wallpapers.isEmpty }
+    private var canWallpaper: Bool { desktop.capabilities.contains(.wallpaper) && !theme.wallpapers.isEmpty }
     private var wallpaperURL: URL? { (wallpaperFile ?? theme.wallpapers.first).map(theme.wallpaperURL) }
 
     /// Light/dark and accent keep their saved defaults (they're reported as not supported), so
     /// remembering choices here doesn't rewrite them.
     private var options: ApplyOptions {
-        var options = model.settings.applyDefaults
+        var options = preferences.settings.applyDefaults
         options.wallpaper = canWallpaper && setWallpaper
         options.fit = fit
         return options
@@ -43,7 +45,7 @@ struct ApplySheet: View {
                 Section {
                     Toggle("Use these choices for one-click Apply", isOn: $remember)
                 } footer: {
-                    Text(model.hasOriginalSnapshot
+                    Text(desktop.hasOriginalSnapshot
                          ? "You can go back to your original desktop any time from Settings."
                          : "Your current desktop picture is saved first, so you can restore it from Settings.")
                         .foregroundStyle(.secondary)
@@ -60,8 +62,8 @@ struct ApplySheet: View {
         .onAppear {
             guard !loaded else { return }
             loaded = true
-            setWallpaper = model.settings.applyDefaults.wallpaper
-            fit = model.defaultFit
+            setWallpaper = preferences.settings.applyDefaults.wallpaper
+            fit = desktop.defaultFit
         }
     }
 
@@ -77,7 +79,7 @@ struct ApplySheet: View {
                         Toggle("Set as desktop picture", isOn: $setWallpaper)
                             .accessibilityIdentifier("applyWallpaperToggle")
                         Picker("Fit", selection: $fit) {
-                            ForEach(model.supportedFits) { Text($0.displayName).tag($0) }
+                            ForEach(desktop.supportedFits) { Text($0.displayName).tag($0) }
                         }
                         // No .fixedSize(): in a grouped Form it widens the row past the
                         // sheet, and the whole form is then cropped on both sides.
@@ -133,7 +135,7 @@ struct ApplySheet: View {
                 .accessibilityIdentifier("applySheetCancel")
             Button("Apply") {
                 let options = self.options
-                if remember { model.updateSettings { $0.applyDefaults = options } }
+                if remember { preferences.update { $0.applyDefaults = options } }
                 dismiss()
                 onApply(options)
             }

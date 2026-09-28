@@ -1,14 +1,18 @@
 import OmarchyThemesKit
+import OmarchyThemesStores
 import SwiftUI
 
 /// The main window: sidebar (Gallery, Downloaded) and a drill-in stack for each.
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @Environment(Preferences.self) private var preferences
+    @Environment(ThemeLibrary.self) private var library
     @State private var galleryPath: [CatalogEntry] = []
     @State private var downloadedPath: [CatalogEntry] = []
 
     var body: some View {
         @Bindable var model = model
+        @Bindable var preferences = preferences
 
         NavigationSplitView {
             sidebar
@@ -24,11 +28,11 @@ struct ContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $model.showWelcome, onDismiss: { model.dismissWelcome() }) {
+        .sheet(isPresented: $preferences.showWelcome, onDismiss: { preferences.dismissWelcome() }) {
             WelcomeView()
         }
         .overlay(alignment: .bottom) {
-            if model.isDryRun {
+            if model.stores.isDryRun {
                 DryRunBadge()
             }
         }
@@ -43,7 +47,7 @@ struct ContentView: View {
                     .tag(SidebarItem.gallery)
                     .accessibilityIdentifier("sidebar.gallery")
                 Label("Downloaded", systemImage: "arrow.down.circle")
-                    .badge(model.installed.count)
+                    .badge(library.installed.count)
                     .tag(SidebarItem.downloaded)
                     .accessibilityIdentifier("sidebar.downloaded")
             }

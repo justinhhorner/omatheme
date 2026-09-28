@@ -1,10 +1,13 @@
 import OmarchyThemesKit
+import OmarchyThemesStores
 import SwiftUI
 
 /// One theme. Downloaded themes render entirely from disk (no network); others are resolved
 /// from GitHub on open. Downloads show progress and can be cancelled.
 struct ThemeDetailView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(Banners.self) private var banners
+    @Environment(ThemeLibrary.self) private var library
+    @Environment(DesktopStore.self) private var desktop
     @Environment(\.openURL) private var openURL
     let entry: CatalogEntry
 
@@ -17,12 +20,12 @@ struct ThemeDetailView: View {
     @State private var applyTarget: ApplyTarget?
     @State private var confirmRemove = false
 
-    private var installed: InstalledTheme? { model.installedTheme(entry.slug) }
-    private var download: DownloadState? { model.downloads[entry.slug] }
+    private var installed: InstalledTheme? { library.installedTheme(entry.slug) }
+    private var download: DownloadState? { library.downloads[entry.slug] }
     private var palette: Palette? { installed?.palette ?? details?.palette }
     private var mode: AppearanceMode? { installed?.mode ?? details?.mode }
-    private var isActive: Bool { installed != nil && model.activeSlug == entry.slug }
-    private var isApplying: Bool { model.applyingSlug == entry.slug }
+    private var isActive: Bool { installed != nil && desktop.activeSlug == entry.slug }
+    private var isApplying: Bool { desktop.applyingSlug == entry.slug }
 
     private var wallpapers: [WallpaperItem] {
         if let installed {
@@ -44,7 +47,7 @@ struct ThemeDetailView: View {
                 header
                 notices
                 if let download {
-                    DownloadProgressView(state: download) { model.cancelDownload(entry.slug) }
+                    DownloadProgressView(state: download) { library.cancelDownload(entry.slug) }
                 }
                 ThumbnailImage(url: installed?.screenshotURL ?? entry.screenshotURL, maxPixelSize: 1600, contentMode: .fit)
                     .aspectRatio(16 / 9, contentMode: .fit)
@@ -67,7 +70,7 @@ struct ThemeDetailView: View {
             .padding(24)
             .frame(maxWidth: 1100, alignment: .leading)
             .frame(maxWidth: .infinity)
-            .animation(.default, value: model.banners[.theme(entry.slug)])
+            .animation(.default, value: banners[.theme(entry.slug)])
         }
         .overlay { wallpaperPreview }
         .navigationTitle(entry.name)
@@ -98,7 +101,7 @@ struct ThemeDetailView: View {
         }
         .confirmationDialog("Remove \(entry.name)?", isPresented: $confirmRemove) {
             Button("Remove Download", role: .destructive) {
-                if let installed { model.banners[.theme(entry.slug)] = model.remove(installed) }
+                if let installed { banners[.theme(entry.slug)] = library.remove(installed) }
             }
         } message: {
             RemoveDownloadMessage(isOnDesktop: isActive)
@@ -154,11 +157,11 @@ struct ThemeDetailView: View {
             applyTarget = ApplyTarget(theme: installed, wallpaperFile: wallpapers[safe: selectedWallpaper]?.name)
         }
         .buttonStyle(.borderedProminent)
-        .disabled(isApplying || model.applyingSlug != nil)
+        .disabled(isApplying || desktop.applyingSlug != nil)
         .accessibilityIdentifier("applyButton")
 
         Menu {
-            Button("Download Again") { Task { await model.download(entry) } }
+            Button("Download Again") { Task { await library.download(entry) } }
             ShowInFinderButton(url: installed.directory)
             Divider()
             Button("Remove Download…", role: .destructive) { confirmRemove = true }
@@ -172,13 +175,13 @@ struct ThemeDetailView: View {
 
     @ViewBuilder
     private var downloadActions: some View {
-        Button("Download") { Task { await model.download(entry) } }
+        Button("Download") { Task { await library.download(entry) } }
             .disabled(details?.canApply != true)
             .accessibilityIdentifier("downloadButton")
         Button("Download and Apply…") {
             let index = selectedWallpaper
             Task {
-                if let theme = await model.download(entry) {
+                if let theme = await library.download(entry) {
                     applyTarget = ApplyTarget(theme: theme, wallpaperFile: theme.wallpapers[safe: index])
                 }
             }
@@ -308,10 +311,10 @@ struct ThemeDetailView: View {
 
     private func load() async {
         if let installed {
-            selectedWallpaper = model.preferredWallpaper(for: installed).flatMap(installed.wallpapers.firstIndex(of:)) ?? 0
+            selectedWallpaper = desktop.preferredWallpaper(for: installed).flatMap(installed.wallpapers.firstIndex(of:)) ?? 0
             return // Everything needed is on disk; no network.
         }
-        if let cached = model.cachedDetails(entry.slug) {
+        if let cached = library.cachedDetails(entry.slug) {
             details = cached
             return
         }
@@ -323,7 +326,7 @@ struct ThemeDetailView: View {
         resolveError = nil
         defer { isResolving = false }
         do {
-            details = try await model.details(for: entry, force: force)
+            details = try await library.details(for: entry, force: force)
         } catch is CancellationError {
         } catch let error as URLError where error.code == .cancelled {
         } catch let error as URLError {
@@ -341,8 +344,8 @@ struct ThemeDetailView: View {
         if let file = target.wallpaperFile, let index = target.theme.wallpapers.firstIndex(of: file) {
             selectedWallpaper = index
         }
-        let summary = await model.apply(target.theme, wallpaperFile: target.wallpaperFile, options: options)
-        model.banners[.theme(entry.slug)] = Banner(summary)
+        let summary = await desktop.apply(target.theme, wallpaperFile: target.wallpaperFile, options: options)
+        banners[.theme(entry.slug)] = Banner(summary)
     }
 }
 

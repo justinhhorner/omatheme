@@ -162,10 +162,11 @@ What was built, per the confirmed plan. See README "Building on macOS" and `docs
 
 - `macos/OmarchyThemesKit` (Swift package, `swift test`): target `OmarchyThemesKit` (no AppKit) ports Core;
   target `OmarchyThemesMac` holds `MacDesktopBackend` behind a fake-able `WallpaperAPI` (mirrors
-  Platform.Windows). Tests: 114 Kit + 36 Mac (4 of them opt-in live checks), Swift Testing, fixtures read from root `fixtures/` via
-  `#filePath`.
-- `macos/App`: SwiftUI app. `AppModel` (`@Observable`, `@MainActor`) owns services and state; downloads run in
-  model-owned tasks so they survive navigation. Views in `App/Views`.
+  Platform.Windows); target `OmarchyThemesStores` holds the app's logic as observable stores built from an
+  injectable `AppServices`; `OmarchyThemesTestSupport` has the shared fakes and fixtures (read from root
+  `fixtures/` via `#filePath`). Tests: 114 Kit + 36 Mac (4 of them opt-in live checks) + 28 stores, Swift Testing.
+- `macos/App`: SwiftUI views plus a thin `AppModel` (the stores, the thumbnail loader, navigation). Views take
+  the stores they use from the environment (`appEnvironment`); put new logic in a store, with a test, not in a view.
 - `macos/project.yml` → `xcodegen` → `OmarchyThemes.xcodeproj` (ignored). Bundle id
   `com.justinhhorner.OmarchyThemes`, ad-hoc signed, hardened runtime, no sandbox.
 - Icon: `swift macos/tools/generate-app-icon.swift` renders `design/AppIcon.svg` (NSImage reads SVG) onto the

@@ -1,16 +1,19 @@
 import OmarchyThemesKit
+import OmarchyThemesStores
 import OmarchyThemesMac
 import SwiftUI
 
 /// Sends the theme's colors to the terminal picked in the menu (see `TerminalExporter`).
 struct TerminalColorsSection: View {
-    @Environment(AppModel.self) private var model
+    @Environment(Banners.self) private var banners
+    @Environment(ThemeLibrary.self) private var library
+    @Environment(TerminalStore.self) private var terminals
     let entry: CatalogEntry
     let palette: Palette
 
     var body: some View {
-        let exporter = model.selectedTerminal
-        let isAdded = model.isAddedToSelectedTerminal(entry)
+        let exporter = terminals.selected
+        let isAdded = terminals.isAdded(entry)
 
         VStack(alignment: .leading, spacing: 10) {
             Text("Terminal Colors").font(.title2.weight(.semibold))
@@ -18,12 +21,12 @@ struct TerminalColorsSection: View {
                 picker(selection: exporter.id)
                 if isAdded {
                     Button(exporter.canRemove ? "Remove from \(exporter.displayName)" : "How to Remove…") {
-                        showBanner(model.removeFromTerminal(entry))
+                        showBanner(terminals.remove(entry))
                     }
                     .accessibilityIdentifier("removeFromTerminalButton")
                 } else {
                     Button("Add to \(exporter.displayName)") {
-                        Task { showBanner(await model.addToTerminal(entry, palette: palette)) }
+                        Task { showBanner(await terminals.add(entry, palette: palette)) }
                     }
                     .disabled(!exporter.isInstalled)
                     .accessibilityIdentifier("addToTerminalButton")
@@ -38,8 +41,8 @@ struct TerminalColorsSection: View {
     }
 
     private func picker(selection: String) -> some View {
-        Picker("Terminal", selection: Binding(get: { selection }, set: { model.selectTerminal($0) })) {
-            ForEach(model.terminals, id: \.id) { terminal in
+        Picker("Terminal", selection: Binding(get: { selection }, set: { terminals.select($0) })) {
+            ForEach(terminals.exporters, id: \.id) { terminal in
                 Text(terminal.isInstalled ? terminal.displayName : "\(terminal.displayName) (not installed)")
                     .tag(terminal.id)
             }
@@ -65,11 +68,11 @@ struct TerminalColorsSection: View {
     private func hint(_ exporter: any TerminalExporter, isAdded: Bool) -> String {
         if !exporter.isInstalled { return exporter.notInstalledHint }
         guard isAdded else { return exporter.addHint }
-        let scheme = exporter.schemeName(forTheme: model.themeName(for: entry))
+        let scheme = exporter.schemeName(forTheme: library.themeName(for: entry))
         return "Available in \(exporter.displayName) as “\(scheme)”."
     }
 
     private func showBanner(_ banner: Banner) {
-        withAnimation { model.banners[.terminal(entry.slug)] = banner }
+        withAnimation { banners[.terminal(entry.slug)] = banner }
     }
 }

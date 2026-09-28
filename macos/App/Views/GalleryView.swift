@@ -1,13 +1,16 @@
 import OmarchyThemesKit
+import OmarchyThemesStores
 import SwiftUI
 
 /// The theme catalog as a screenshot grid, with search, a "downloaded only" filter and refresh.
 struct GalleryView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(CatalogStore.self) private var catalog
+    @Environment(ThemeLibrary.self) private var library
+    @Environment(DesktopStore.self) private var desktop
     @State private var searchText = ""
     @AppStorage("gallery.downloadedOnly") private var downloadedOnly = false
 
-    private var installedSlugs: Set<String> { Set(model.installed.map(\.slug)) }
+    private var installedSlugs: Set<String> { Set(library.installed.map(\.slug)) }
 
     private var query: String { searchText.trimmingCharacters(in: .whitespaces) }
 
@@ -16,7 +19,7 @@ struct GalleryView: View {
     private var visible: [CatalogEntry] {
         let query = query
         let installed = installedSlugs
-        return model.entries.filter { entry in
+        return catalog.entries.filter { entry in
             let matchesQuery = query.isEmpty
                 || entry.name.localizedCaseInsensitiveContains(query)
                 || entry.repoDisplay.localizedCaseInsensitiveContains(query)
@@ -25,11 +28,11 @@ struct GalleryView: View {
     }
 
     private var subtitle: String {
-        guard !model.entries.isEmpty else { return "" }
-        let count = visible.count == model.entries.count
-            ? "\(model.entries.count) themes"
-            : "\(visible.count) of \(model.entries.count) themes"
-        return model.catalogFetchedAt.map { "\(count) · updated \($0.relativeDescription)" } ?? count
+        guard !catalog.entries.isEmpty else { return "" }
+        let count = visible.count == catalog.entries.count
+            ? "\(catalog.entries.count) themes"
+            : "\(visible.count) of \(catalog.entries.count) themes"
+        return catalog.fetchedAt.map { "\(count) · updated \($0.relativeDescription)" } ?? count
     }
 
     var body: some View {
@@ -48,22 +51,22 @@ struct GalleryView: View {
                     RefreshButton()
                 }
             }
-            .task { await model.loadCatalogIfNeeded() }
+            .task { await catalog.loadIfNeeded() }
     }
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty {
+        if catalog.entries.isEmpty {
             // The current theme is local, so it shows even when the catalog can't load.
             withCurrentTheme {
-                if let error = model.catalogError {
+                if let error = catalog.error {
                     ContentUnavailableView {
                         Label("Couldn't Load Themes", systemImage: "wifi.exclamationmark")
                     } description: {
                         Text(error)
                     } actions: {
-                        Button("Try Again") { Task { await model.refreshCatalog() } }
-                            .disabled(model.isRefreshing)
+                        Button("Try Again") { Task { await catalog.refresh() } }
+                            .disabled(catalog.isRefreshing)
                     }
                 } else {
                     ProgressView("Loading themes from omarchy.org…")
@@ -89,7 +92,7 @@ struct GalleryView: View {
 
     @ViewBuilder
     private func withCurrentTheme(@ViewBuilder _ content: () -> some View) -> some View {
-        if let theme = model.currentTheme, !isSearching {
+        if let theme = desktop.currentTheme, !isSearching {
             VStack(spacing: 0) {
                 currentThemeSection(theme).padding(20)
                 content()
@@ -113,7 +116,7 @@ struct GalleryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 notices
-                if let theme = model.currentTheme, !isSearching {
+                if let theme = desktop.currentTheme, !isSearching {
                     currentThemeSection(theme)
                 }
                 sections(visible)
@@ -125,14 +128,14 @@ struct GalleryView: View {
 
     @ViewBuilder
     private var notices: some View {
-        if let notice = model.catalogNotice {
+        if let notice = catalog.notice {
             BannerView(banner: Banner(kind: .warning, title: "Showing a cached catalog", message: notice)) {
-                model.catalogNotice = nil
+                catalog.notice = nil
             }
         }
-        if let notice = model.defaultThemesNotice {
+        if let notice = catalog.defaultThemesNotice {
             BannerView(banner: Banner(kind: .warning, title: "Omarchy's themes are missing", message: notice)) {
-                model.defaultThemesNotice = nil
+                catalog.defaultThemesNotice = nil
             }
         }
     }
@@ -166,7 +169,7 @@ struct GalleryView: View {
         let installed = installedSlugs
         return ForEach(entries) { entry in
             NavigationLink(value: entry) {
-                ThemeCard(entry: entry, isDownloaded: installed.contains(entry.slug), isActive: model.activeSlug == entry.slug)
+                ThemeCard(entry: entry, isDownloaded: installed.contains(entry.slug), isActive: desktop.activeSlug == entry.slug)
             }
             .buttonStyle(.plain)
             .contextMenu {
@@ -201,18 +204,18 @@ struct GallerySectionHeader: View {
 }
 
 struct RefreshButton: View {
-    @Environment(AppModel.self) private var model
+    @Environment(CatalogStore.self) private var catalog
 
     var body: some View {
         Button {
-            Task { await model.refreshCatalog() }
+            Task { await catalog.refresh() }
         } label: {
             Label("Refresh", systemImage: "arrow.clockwise")
         }
         .help("Reload the theme list from omarchy.org (⌘R)")
-        .disabled(model.isRefreshing)
+        .disabled(catalog.isRefreshing)
         .overlay {
-            if model.isRefreshing {
+            if catalog.isRefreshing {
                 ProgressView().controlSize(.small)
             }
         }

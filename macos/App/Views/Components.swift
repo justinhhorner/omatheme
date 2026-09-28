@@ -1,5 +1,6 @@
 import AppKit
 import OmarchyThemesKit
+import OmarchyThemesStores
 import SwiftUI
 
 extension Color {
@@ -68,12 +69,12 @@ struct BannerView: View {
 
 /// The banner stored for `context`, if any.
 struct ContextBanner: View {
-    @Environment(AppModel.self) private var model
+    @Environment(Banners.self) private var banners
     let context: BannerContext
 
     var body: some View {
-        if let banner = model.banners[context] {
-            BannerView(banner: banner) { model.banners[context] = nil }
+        if let banner = banners[context] {
+            BannerView(banner: banner) { banners[context] = nil }
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

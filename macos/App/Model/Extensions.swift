@@ -13,12 +13,6 @@ extension InstalledTheme {
     }
 }
 
-extension Date {
-    var relativeDescription: String {
-        formatted(.relative(presentation: .named))
-    }
-}
-
 extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
