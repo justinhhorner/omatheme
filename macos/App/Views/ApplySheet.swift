@@ -35,8 +35,9 @@ struct ApplySheet: View {
                                 Picker("Fit", selection: $fit) {
                                     ForEach(model.supportedFits) { Text($0.displayName).tag($0) }
                                 }
+                                // No .fixedSize(): in a grouped Form it widens the row past the
+                                // sheet, and the whole form is then cropped on both sides.
                                 .disabled(!setWallpaper)
-                                .fixedSize()
                             }
                         }
                     } else {
