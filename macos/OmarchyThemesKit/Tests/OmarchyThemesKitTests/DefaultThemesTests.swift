@@ -46,7 +46,8 @@ struct DefaultThemesTests {
     }
 
     @Test func communityEntriesAreNotDefaultThemes() {
-        let entry = CatalogEntry(slug: "aetheria", name: "Aetheria", repoURL: URL(string: "https://github.com/JJDizz1L/aetheria")!, screenshotURL: nil)
+        let entry = CatalogEntry(
+            slug: "aetheria", name: "Aetheria", repoURL: URL(string: "https://github.com/JJDizz1L/aetheria")!, screenshotURL: nil)
 
         #expect(!entry.isDefaultTheme)
         #expect(entry.repoDisplay == "JJDizz1L/aetheria")

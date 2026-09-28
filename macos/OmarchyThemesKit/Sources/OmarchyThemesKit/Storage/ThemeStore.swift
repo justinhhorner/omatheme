@@ -1,73 +1,5 @@
 import Foundation
 
-/// A theme saved locally. Everything needed to apply it is on disk (no network).
-public struct InstalledTheme: Codable, Sendable, Hashable, Identifiable {
-    public var slug: String
-    public var name: String
-    public var repoURL: URL
-    public var palette: Palette?
-    public var mode: AppearanceMode
-
-    /// Wallpaper file names inside the theme's wallpapers folder, in display order.
-    public var wallpapers: [String]
-
-    public var screenshotFile: String?
-    public var downloadedAt: Date
-
-    /// Absolute folder of this theme; set when loaded from disk.
-    public var directory: URL = URL(filePath: "/")
-
-    public init(
-        slug: String, name: String, repoURL: URL, palette: Palette? = nil, mode: AppearanceMode = .dark,
-        wallpapers: [String] = [], screenshotFile: String? = nil, downloadedAt: Date = Date(), directory: URL = URL(filePath: "/")
-    ) {
-        self.slug = slug
-        self.name = name
-        self.repoURL = repoURL
-        self.palette = palette
-        self.mode = mode
-        self.wallpapers = wallpapers
-        self.screenshotFile = screenshotFile
-        self.downloadedAt = downloadedAt
-        self.directory = directory
-    }
-
-    public var id: String { slug }
-
-    public func wallpaperURL(_ fileName: String) -> URL {
-        directory.appending(path: ThemeStore.wallpapersFolder, directoryHint: .isDirectory).appending(path: fileName)
-    }
-
-    public var screenshotURL: URL? { screenshotFile.map { directory.appending(path: $0) } }
-
-    // Keys follow docs/data-format.md (shared with Windows): "repoUrl".
-    private enum CodingKeys: String, CodingKey {
-        case slug, name, palette, mode, wallpapers, screenshotFile, downloadedAt
-        case repoURL = "repoUrl"
-    }
-
-    /// Keys written by older versions of this app.
-    private enum LegacyKeys: String, CodingKey {
-        case repoURL
-    }
-
-    public init(from decoder: any Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        slug = try c.decode(String.self, forKey: .slug)
-        name = try c.decode(String.self, forKey: .name)
-        if let url = try c.decodeIfPresent(URL.self, forKey: .repoURL) {
-            repoURL = url
-        } else {
-            repoURL = try decoder.container(keyedBy: LegacyKeys.self).decode(URL.self, forKey: .repoURL)
-        }
-        palette = try c.decodeIfPresent(Palette.self, forKey: .palette)
-        mode = try c.decodeIfPresent(AppearanceMode.self, forKey: .mode) ?? palette?.mode ?? .dark
-        wallpapers = try c.decodeIfPresent([String].self, forKey: .wallpapers) ?? []
-        screenshotFile = try c.decodeIfPresent(String.self, forKey: .screenshotFile)
-        downloadedAt = try c.decode(Date.self, forKey: .downloadedAt)
-    }
-}
-
 public struct DownloadProgress: Sendable, Equatable {
     public var fileIndex: Int
     public var fileCount: Int
@@ -110,10 +42,6 @@ public struct ThemeStore: Sendable {
         (try? paths.themeDir(slug)).flatMap(Self.load)
     }
 
-    public func isInstalled(_ slug: String) -> Bool {
-        get(slug) != nil
-    }
-
     private static func load(_ dir: URL) -> InstalledTheme? {
         guard var theme = JSONFile.read(InstalledTheme.self, from: dir.appending(path: manifestFile)) else { return nil }
         theme.directory = dir
@@ -123,7 +51,10 @@ public struct ThemeStore: Sendable {
     /// Downloads every wallpaper (plus the screenshot) into a staging folder and swaps it in
     /// atomically, so a cancelled or failed download never leaves a half-installed theme.
     @discardableResult
-    public func install(_ details: ThemeDetails, progress: (@Sendable (DownloadProgress) -> Void)? = nil) async throws -> InstalledTheme {
+    public func install(
+        _ details: ThemeDetails,
+        progress: (@Sendable (DownloadProgress) -> Void)? = nil
+    ) async throws -> InstalledTheme {
         guard details.canApply else { throw NothingToDownloadError(themeName: details.entry.name) }
 
         let fm = FileManager.default
@@ -138,12 +69,17 @@ public struct ThemeStore: Sendable {
         var usedNames: Set<String> = []
         let fileCount = details.wallpapers.count + (details.entry.screenshotURL == nil ? 0 : 1)
 
+        @Sendable func report(_ index: Int, _ fileName: String, bytes: Int64, of total: Int64?) {
+            progress?(DownloadProgress(
+                fileIndex: index, fileCount: fileCount, fileName: fileName, bytesReceived: bytes, totalBytes: total))
+        }
+
         for (index, wallpaper) in details.wallpapers.enumerated() {
             let name = Self.uniqueFileName(wallpaper.fileName, used: &usedNames)
-            progress?(DownloadProgress(fileIndex: index, fileCount: fileCount, fileName: wallpaper.fileName, bytesReceived: 0, totalBytes: wallpaper.size))
+            report(index, wallpaper.fileName, bytes: 0, of: wallpaper.size)
             try Task.checkCancellation()
             try await downloader.download(from: wallpaper.downloadURL, to: stagingWallpapers.appending(path: name)) { bytes in
-                progress?(DownloadProgress(fileIndex: index, fileCount: fileCount, fileName: wallpaper.fileName, bytesReceived: bytes, totalBytes: wallpaper.size))
+                report(index, wallpaper.fileName, bytes: bytes, of: wallpaper.size)
             }
             wallpaperNames.append(name)
         }
@@ -153,7 +89,7 @@ public struct ThemeStore: Sendable {
         if let screenshotURL = details.entry.screenshotURL {
             let ext = screenshotURL.pathExtension.lowercased()
             let candidate = "screenshot." + (ext.isEmpty ? "webp" : ext)
-            progress?(DownloadProgress(fileIndex: fileCount - 1, fileCount: fileCount, fileName: candidate, bytesReceived: 0, totalBytes: nil))
+            report(fileCount - 1, candidate, bytes: 0, of: nil)
             do {
                 try await downloader.download(from: screenshotURL, to: staging.appending(path: candidate), progress: nil)
                 screenshotFile = candidate
@@ -175,18 +111,18 @@ public struct ThemeStore: Sendable {
         try JSONFile.write(theme, to: staging.appending(path: Self.manifestFile))
 
         if fm.fileExists(atPath: finalDir.path) {
-            try fm.removeItem(at: finalDir)
+            // One-step swap: if it fails, the previous download is still there.
+            _ = try fm.replaceItemAt(finalDir, withItemAt: staging)
+        } else {
+            try fm.moveItem(at: staging, to: finalDir)
         }
-        try fm.moveItem(at: staging, to: finalDir)
 
         theme.directory = finalDir
         return theme
     }
 
     public func remove(_ slug: String) throws {
-        let dir = try paths.themeDir(slug)
-        guard FileManager.default.fileExists(atPath: dir.path) else { return }
-        try FileManager.default.removeItem(at: dir)
+        try FileManager.default.removeItemIfPresent(at: paths.themeDir(slug))
     }
 
     /// Deletes leftovers from interrupted downloads (e.g. the app was quit mid-download).

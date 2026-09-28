@@ -4,6 +4,13 @@ import SwiftUI
 struct WelcomeView: View {
     @Environment(AppModel.self) private var model
 
+    /// Markdown, for the links.
+    private let credits: LocalizedStringKey = """
+        Omarchy is made by DHH and contributors at [omarchy.org](https://omarchy.org) and \
+        [basecamp/omarchy](https://github.com/basecamp/omarchy). This app isn't affiliated with Omarchy or 37signals, \
+        and every theme belongs to its author.
+        """
+
     var body: some View {
         VStack(spacing: 22) {
             Image(nsImage: NSApp.applicationIconImage)
@@ -20,16 +27,24 @@ struct WelcomeView: View {
             }
 
             VStack(alignment: .leading, spacing: 14) {
-                Feature(symbol: "square.grid.2x2", title: "Browse the gallery",
-                        text: "See the themes that come with Omarchy and every community theme from omarchy.org/themes, with their colors and wallpapers.")
-                Feature(symbol: "arrow.down.circle", title: "Download what you like",
-                        text: "Downloaded themes are kept on this Mac and work offline.")
-                Feature(symbol: "photo.on.rectangle", title: "Make it your desktop",
-                        text: "Set a theme's wallpaper as your desktop picture. Nothing changes until you apply a theme, and your current desktop is saved first so you can restore it.")
+                Feature(
+                    symbol: "square.grid.2x2",
+                    title: "Browse the gallery",
+                    text: "See the themes that come with Omarchy and every community theme from omarchy.org/themes, "
+                        + "with their colors and wallpapers.")
+                Feature(
+                    symbol: "arrow.down.circle",
+                    title: "Download what you like",
+                    text: "Downloaded themes are kept on this Mac and work offline.")
+                Feature(
+                    symbol: "photo.on.rectangle",
+                    title: "Make it your desktop",
+                    text: "Set a theme's wallpaper as your desktop picture. Nothing changes until you apply a theme, "
+                        + "and your current desktop is saved first so you can restore it.")
             }
             .frame(maxWidth: 420)
 
-            Text("Omarchy is made by DHH and contributors at [omarchy.org](https://omarchy.org) and [basecamp/omarchy](https://github.com/basecamp/omarchy). This app isn't affiliated with Omarchy or 37signals, and every theme belongs to its author.")
+            Text(credits)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

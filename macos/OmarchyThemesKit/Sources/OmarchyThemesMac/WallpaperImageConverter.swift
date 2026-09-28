@@ -23,20 +23,20 @@ public struct WallpaperImageConverter: Sendable {
             return output
         }
 
+        let unreadable = ImageConversionError(fileName: image.lastPathComponent)
         guard let source = CGImageSourceCreateWithURL(image as CFURL, nil),
               let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { throw ImageConversionError(fileName: image.lastPathComponent) }
+        else { throw unreadable }
 
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         let temporary = folder.appending(path: ".\(UUID().uuidString).png")
         defer { try? fm.removeItem(at: temporary) }
-        guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-            throw ImageConversionError(fileName: image.lastPathComponent)
-        }
+        guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, UTType.png.identifier as CFString, 1, nil)
+        else { throw unreadable }
         CGImageDestinationAddImage(destination, cgImage, nil)
-        guard CGImageDestinationFinalize(destination) else { throw ImageConversionError(fileName: image.lastPathComponent) }
+        guard CGImageDestinationFinalize(destination) else { throw unreadable }
 
-        if fm.fileExists(atPath: output.path) { try fm.removeItem(at: output) }
+        try fm.removeItemIfPresent(at: output)
         try fm.moveItem(at: temporary, to: output)
         return output
     }

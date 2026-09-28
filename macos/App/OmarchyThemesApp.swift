@@ -7,7 +7,7 @@ struct OmarchyThemesApp: App {
     @State private var model = AppModel()
 
     var body: some Scene {
-        Window("Omarchy Themes", id: "main") {
+        Window("Omarchy Themes", id: WindowID.main) {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 820, minHeight: 540)
@@ -20,6 +20,10 @@ struct OmarchyThemesApp: App {
                 .environment(model)
         }
     }
+}
+
+enum WindowID {
+    static let main = "main"
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -53,7 +57,7 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .help) {
             Button("Show Welcome Screen") {
                 model.showWelcome = true
-                openWindow(id: "main")
+                openWindow(id: WindowID.main)
             }
             Divider()
             Link("Omarchy Theme Gallery", destination: URL(string: "https://omarchy.org/themes/")!)
@@ -63,9 +67,20 @@ struct AppCommands: Commands {
 }
 
 /// The standard About panel, with credits for Omarchy.
+@MainActor
 enum AboutPanel {
-    @MainActor
+    private static let links = [
+        ("omarchy.org", "https://omarchy.org"),
+        ("Theme gallery", "https://omarchy.org/themes/"),
+        ("basecamp/omarchy", "https://github.com/basecamp/omarchy"),
+    ]
+
     static func show() {
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits()])
+        NSApp.activate()
+    }
+
+    private static func credits() -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         let base: [NSAttributedString.Key: Any] = [
@@ -73,18 +88,20 @@ enum AboutPanel {
             .foregroundColor: NSColor.secondaryLabelColor,
             .paragraphStyle: paragraph,
         ]
-
-        let credits = NSMutableAttributedString(string: "A companion for the themes that ship with Omarchy and its community theme gallery.\n\nOmarchy is by DHH and contributors:\n", attributes: base)
-        let links = [("omarchy.org", "https://omarchy.org"), ("Theme gallery", "https://omarchy.org/themes/"), ("basecamp/omarchy", "https://github.com/basecamp/omarchy")]
-        for (index, (title, url)) in links.enumerated() {
+        func append(_ text: String, to credits: NSMutableAttributedString, link: String? = nil) {
             var attributes = base
-            attributes[.link] = URL(string: url)!
-            credits.append(NSAttributedString(string: title, attributes: attributes))
-            credits.append(NSAttributedString(string: index == links.count - 1 ? "\n" : " · ", attributes: base))
+            if let link { attributes[.link] = URL(string: link)! }
+            credits.append(NSAttributedString(string: text, attributes: attributes))
         }
-        credits.append(NSAttributedString(string: "\nNot affiliated with Omarchy or 37signals. Every theme belongs to its author.", attributes: base))
 
-        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
-        NSApp.activate()
+        let credits = NSMutableAttributedString()
+        append("A companion for the themes that ship with Omarchy and its community theme gallery.\n\n", to: credits)
+        append("Omarchy is by DHH and contributors:\n", to: credits)
+        for (index, (title, url)) in links.enumerated() {
+            append(title, to: credits, link: url)
+            append(index == links.count - 1 ? "\n" : " · ", to: credits)
+        }
+        append("\nNot affiliated with Omarchy or 37signals. Every theme belongs to its author.", to: credits)
+        return credits
     }
 }

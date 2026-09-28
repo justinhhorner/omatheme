@@ -58,7 +58,9 @@ struct ThemeDetailView: View {
                         .frame(maxWidth: .infinity)
                 } else {
                     paletteSection
-                    terminalSection
+                    if let palette {
+                        TerminalColorsSection(entry: entry, palette: palette)
+                    }
                     wallpaperSection
                 }
             }
@@ -67,17 +69,7 @@ struct ThemeDetailView: View {
             .frame(maxWidth: .infinity)
             .animation(.default, value: model.banners[.theme(entry.slug)])
         }
-        .overlay {
-            if let previewIndex, wallpapers.indices.contains(previewIndex) {
-                WallpaperPreview(
-                    items: wallpapers,
-                    index: Binding(get: { previewIndex }, set: { self.previewIndex = $0 }),
-                    selectedIndex: selectedWallpaper,
-                    onSelect: { selectedWallpaper = $0 },
-                    onClose: { withAnimation(.easeOut(duration: 0.15)) { self.previewIndex = nil } })
-                .transition(.opacity)
-            }
-        }
+        .overlay { wallpaperPreview }
         .navigationTitle(entry.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -95,6 +87,10 @@ struct ThemeDetailView: View {
             }
         }
         .task(id: entry.slug) { await load() }
+        .onChange(of: wallpapers.map(\.name)) { _, names in
+            // After Download Again with fewer wallpapers, fall back to the first rather than none.
+            if !names.indices.contains(selectedWallpaper) { selectedWallpaper = 0 }
+        }
         .sheet(item: $applyTarget) { target in
             ApplySheet(theme: target.theme, wallpaperFile: target.wallpaperFile) { options in
                 Task { await apply(target, options: options) }
@@ -102,12 +98,10 @@ struct ThemeDetailView: View {
         }
         .confirmationDialog("Remove \(entry.name)?", isPresented: $confirmRemove) {
             Button("Remove Download", role: .destructive) {
-                if let installed { model.remove(installed) }
+                if let installed { model.banners[.theme(entry.slug)] = model.remove(installed) }
             }
         } message: {
-            Text(isActive
-                ? "Its wallpapers are deleted from this Mac, including the one on your desktop. You can download the theme again at any time."
-                : "Its wallpapers are deleted from this Mac. You can download the theme again at any time.")
+            RemoveDownloadMessage(isOnDesktop: isActive)
         }
     }
 
@@ -126,9 +120,9 @@ struct ThemeDetailView: View {
                     .font(.callout)
                     if let mode { ModeBadge(mode: mode) }
                     if isActive {
-                        StatusBadge(title: "Applied", symbol: "checkmark.circle.fill", tint: .green)
+                        StatusBadge.applied
                     } else if installed != nil {
-                        StatusBadge(title: "Downloaded", symbol: "arrow.down.circle.fill")
+                        StatusBadge.downloaded
                     }
                 }
             }
@@ -142,46 +136,56 @@ struct ThemeDetailView: View {
         if download == nil {
             HStack(spacing: 8) {
                 if let installed {
-                    if isApplying {
-                        ProgressView().controlSize(.small)
-                    }
-                    Button("Apply to Desktop…") {
-                        applyTarget = ApplyTarget(theme: installed, wallpaperFile: wallpapers[safe: selectedWallpaper]?.name)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isApplying || model.applyingSlug != nil)
-                    .accessibilityIdentifier("applyButton")
-
-                    Menu {
-                        Button("Download Again") { Task { await model.download(entry) } }
-                        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([installed.directory]) }
-                        Divider()
-                        Button("Remove Download…", role: .destructive) { confirmRemove = true }
-                    } label: {
-                        Label("More", systemImage: "ellipsis.circle")
-                    }
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    .accessibilityIdentifier("moreMenu")
+                    installedActions(installed)
                 } else {
-                    Button("Download") { Task { await model.download(entry) } }
-                        .disabled(details?.canApply != true)
-                        .accessibilityIdentifier("downloadButton")
-                    Button("Download and Apply…") {
-                        let index = selectedWallpaper
-                        Task {
-                            if let theme = await model.download(entry) {
-                                applyTarget = ApplyTarget(theme: theme, wallpaperFile: theme.wallpapers[safe: index])
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(details?.canApply != true)
-                    .accessibilityIdentifier("downloadAndApplyButton")
+                    downloadActions
                 }
             }
             .controlSize(.large)
         }
+    }
+
+    @ViewBuilder
+    private func installedActions(_ installed: InstalledTheme) -> some View {
+        if isApplying {
+            ProgressView().controlSize(.small)
+        }
+        Button("Apply to Desktop…") {
+            applyTarget = ApplyTarget(theme: installed, wallpaperFile: wallpapers[safe: selectedWallpaper]?.name)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(isApplying || model.applyingSlug != nil)
+        .accessibilityIdentifier("applyButton")
+
+        Menu {
+            Button("Download Again") { Task { await model.download(entry) } }
+            ShowInFinderButton(url: installed.directory)
+            Divider()
+            Button("Remove Download…", role: .destructive) { confirmRemove = true }
+        } label: {
+            Label("More", systemImage: "ellipsis.circle")
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityIdentifier("moreMenu")
+    }
+
+    @ViewBuilder
+    private var downloadActions: some View {
+        Button("Download") { Task { await model.download(entry) } }
+            .disabled(details?.canApply != true)
+            .accessibilityIdentifier("downloadButton")
+        Button("Download and Apply…") {
+            let index = selectedWallpaper
+            Task {
+                if let theme = await model.download(entry) {
+                    applyTarget = ApplyTarget(theme: theme, wallpaperFile: theme.wallpapers[safe: index])
+                }
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(details?.canApply != true)
+        .accessibilityIdentifier("downloadAndApplyButton")
     }
 
     // MARK: Notices
@@ -201,8 +205,9 @@ struct ThemeDetailView: View {
             BannerView(banner: Banner(kind: .warning, title: "Showing a cached copy", message: "GitHub couldn't be reached\(reason)."))
         }
         if installed == nil, let details, !details.canApply {
-            BannerView(banner: Banner(kind: .warning, title: "Can't apply this theme",
-                                      message: "It has no wallpapers and no readable color palette in a format this app understands."))
+            BannerView(banner: Banner(
+                kind: .warning, title: "Can't apply this theme",
+                message: "It has no wallpapers and no readable color palette in a format this app understands."))
         }
     }
 
@@ -236,66 +241,6 @@ struct ThemeDetailView: View {
         }
     }
 
-    // MARK: Terminal colors
-
-    @ViewBuilder
-    private var terminalSection: some View {
-        if let palette {
-            let exporter = model.selectedTerminal
-            let themeName = installed?.name ?? entry.name
-            let scheme = exporter.schemeName(forTheme: themeName)
-            let isAdded = model.terminalRevision >= 0 && exporter.isAdded(slug: entry.slug, themeName: themeName)
-            let colors = TerminalColors(palette)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Terminal Colors").font(.title2.weight(.semibold))
-                HStack(spacing: 10) {
-                    Picker("Terminal", selection: Binding(get: { exporter.id }, set: { model.selectTerminal($0) })) {
-                        ForEach(model.terminals, id: \.id) { terminal in
-                            Text(terminal.isInstalled ? terminal.displayName : "\(terminal.displayName) (not installed)")
-                                .tag(terminal.id)
-                        }
-                    }
-                    .fixedSize()
-                    .accessibilityIdentifier("terminalPicker")
-
-                    if isAdded {
-                        Button(exporter.canRemove ? "Remove from \(exporter.displayName)" : "How to Remove…") {
-                            showTerminalBanner(model.removeFromTerminal(entry))
-                        }
-                        .accessibilityIdentifier("removeFromTerminalButton")
-                    } else {
-                        Button("Add to \(exporter.displayName)") {
-                            Task { showTerminalBanner(await model.addToTerminal(entry, palette: palette)) }
-                        }
-                        .disabled(!exporter.isInstalled)
-                        .accessibilityIdentifier("addToTerminalButton")
-                    }
-                }
-                HStack(spacing: 2) {
-                    ForEach(Array(colors.ansi.enumerated()), id: \.offset) { index, color in
-                        Rectangle()
-                            .fill(Color(color))
-                            .frame(width: 18, height: 12)
-                            .help("\(index < 8 ? "" : "Bright ")\(TerminalColors.ansiNames[index % 8].lowercased()) \(color.hex.uppercased())")
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-                .accessibilityHidden(true)
-                Text(!exporter.isInstalled ? exporter.notInstalledHint
-                     : isAdded ? "Available in \(exporter.displayName) as “\(scheme)”."
-                     : exporter.addHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ContextBanner(context: .terminal(entry.slug))
-            }
-        }
-    }
-
-    private func showTerminalBanner(_ banner: Banner) {
-        withAnimation { model.banners[.terminal(entry.slug)] = banner }
-    }
-
     // MARK: Wallpapers
 
     @ViewBuilder
@@ -315,30 +260,47 @@ struct ThemeDetailView: View {
                     .help("Show the selected wallpaper larger")
                     .accessibilityIdentifier("previewWallpaperButton")
                 }
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            Button { selectedWallpaper = index } label: {
-                                WallpaperThumbnail(item: item, isSelected: index == selectedWallpaper) {
-                                    preview(index)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .simultaneousGesture(TapGesture(count: 2).onEnded { preview(index) })
-                            .accessibilityLabel(item.name)
-                            .accessibilityAddTraits(index == selectedWallpaper ? .isSelected : [])
-                            .accessibilityAction(named: "Preview") { preview(index) }
-                        }
-                    }
-                    .padding(4)
-                }
-                .scrollIndicators(.visible)
+                wallpaperPicker(items)
                 Text(installed == nil
                      ? "The selected wallpaper is used when you apply the theme."
                      : "The selected wallpaper is used when you apply the theme. Downloaded wallpapers work offline.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func wallpaperPicker(_ items: [WallpaperItem]) -> some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 12) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    Button { selectedWallpaper = index } label: {
+                        WallpaperThumbnail(item: item, isSelected: index == selectedWallpaper) {
+                            preview(index)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .simultaneousGesture(TapGesture(count: 2).onEnded { preview(index) })
+                    .accessibilityLabel(item.name)
+                    .accessibilityAddTraits(index == selectedWallpaper ? .isSelected : [])
+                    .accessibilityAction(named: "Preview") { preview(index) }
+                }
+            }
+            .padding(4)
+        }
+        .scrollIndicators(.visible)
+    }
+
+    @ViewBuilder
+    private var wallpaperPreview: some View {
+        if let previewIndex, wallpapers.indices.contains(previewIndex) {
+            WallpaperPreview(
+                items: wallpapers,
+                index: Binding(get: { previewIndex }, set: { self.previewIndex = $0 }),
+                selectedIndex: selectedWallpaper,
+                onSelect: { selectedWallpaper = $0 },
+                onClose: { withAnimation(.easeOut(duration: 0.15)) { self.previewIndex = nil } })
+            .transition(.opacity)
         }
     }
 
@@ -384,160 +346,6 @@ struct ThemeDetailView: View {
     }
 }
 
-struct ApplyTarget: Identifiable {
-    let id = UUID()
-    let theme: InstalledTheme
-    let wallpaperFile: String?
-}
-
-struct WallpaperItem: Identifiable {
-    var id: URL { url }
-    let name: String
-    let url: URL
-}
-
-struct WallpaperThumbnail: View {
-    let item: WallpaperItem
-    let isSelected: Bool
-    let onPreview: () -> Void
-    @State private var isHovered = false
-
-    /// Just the image: the file name is the tooltip, the accessibility label (set by the caller)
-    /// and shown in the large preview.
-    var body: some View {
-        ThumbnailImage(url: item.url, maxPixelSize: 400)
-            .frame(width: 192, height: 108)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(isSelected ? Color.accentColor : .primary.opacity(0.12), lineWidth: isSelected ? 3 : 1))
-            .help(item.name)
-            .overlay(alignment: .topTrailing) {
-                if isHovered {
-                    Button(action: onPreview) {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.caption.weight(.semibold))
-                            .padding(6)
-                            .background(.regularMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(6)
-                    .help("Preview")
-                    .accessibilityLabel("Preview \(item.name)")
-                    .transition(.opacity)
-                }
-            }
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
-            }
-    }
-}
-
-/// A large preview of one wallpaper over the theme page, with previous/next (← →), "Use This
-/// Wallpaper" to select it for Apply, and Esc or a click outside the controls to close.
-struct WallpaperPreview: View {
-    let items: [WallpaperItem]
-    @Binding var index: Int
-    let selectedIndex: Int
-    let onSelect: (Int) -> Void
-    let onClose: () -> Void
-
-    private var item: WallpaperItem { items[index] }
-    private var hasMany: Bool { items.count > 1 }
-
-    var body: some View {
-        ZStack {
-            Rectangle()
-                .fill(.black.opacity(0.82))
-                .onTapGesture(perform: onClose)
-                .accessibilityHidden(true)
-
-            VStack(spacing: 16) {
-                ZStack {
-                    ProgressView()
-                        .controlSize(.large)
-                        .tint(.white)
-                    ThumbnailImage(url: item.url, maxPixelSize: 2560, contentMode: .fit, showsBackground: false)
-                        .id(item.id)
-                        .shadow(color: .black.opacity(0.5), radius: 20, y: 8)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(false) // a click anywhere but the controls reaches the backdrop and closes
-                .accessibilityElement()
-                .accessibilityLabel("Wallpaper \(item.name)")
-
-                controls
-            }
-            .padding(28)
-        }
-        .environment(\.colorScheme, .dark)
-        .accessibilityAddTraits(.isModal)
-        .accessibilityIdentifier("wallpaperPreview")
-    }
-
-    private var controls: some View {
-        HStack(spacing: 12) {
-            if hasMany {
-                Button { step(-1) } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .keyboardShortcut(.leftArrow, modifiers: [])
-                .help("Previous wallpaper (←)")
-                .accessibilityLabel("Previous wallpaper")
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                if hasMany {
-                    Text("\(index + 1) of \(items.count)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(minWidth: 160, alignment: .leading)
-
-            if hasMany {
-                Button { step(1) } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .keyboardShortcut(.rightArrow, modifiers: [])
-                .help("Next wallpaper (→)")
-                .accessibilityLabel("Next wallpaper")
-            }
-
-            Spacer()
-
-            if index == selectedIndex {
-                Label("Selected", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.secondary)
-            } else {
-                Button("Use This Wallpaper") { onSelect(index) }
-                    .help("Select this wallpaper for Apply")
-            }
-
-            Button(action: onClose) {
-                Label("Close", systemImage: "xmark")
-                    .labelStyle(.iconOnly)
-            }
-            .keyboardShortcut(.cancelAction)
-            .help("Close preview (Esc)")
-            .accessibilityIdentifier("closePreviewButton")
-        }
-        .controlSize(.large)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .frame(maxWidth: 760)
-    }
-
-    private func step(_ delta: Int) {
-        index = (index + delta + items.count) % items.count
-    }
-}
-
 struct DownloadProgressView: View {
     let state: DownloadState
     let onCancel: () -> Void
@@ -561,11 +369,5 @@ struct DownloadProgressView: View {
         .padding(12)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityIdentifier("downloadProgress")
-    }
-}
-
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }

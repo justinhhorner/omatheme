@@ -19,10 +19,13 @@ public struct TerminalAppExporter: TerminalExporter {
     public var displayName: String { "Terminal" }
     public var isInstalled: Bool { environment.findApp(Self.bundleIdentifier) != nil }
     public var canRemove: Bool { false }
-    public var addHint: String { "Opens these colors in Terminal, which adds them as a new profile. Your other profiles aren't changed." }
+
+    public var addHint: String {
+        "Opens these colors in Terminal, which adds them as a new profile. Your other profiles aren't changed."
+    }
 
     func fileURL(themeName: String) -> URL {
-        environment.exportsDirectory.appending(path: "\(schemeName(forTheme: themeName).replacing("/", with: "-")).terminal")
+        environment.exportsDirectory.appending(path: "\(schemeFileName(forTheme: themeName)).terminal")
     }
 
     /// Read-only look at Terminal's own profile list.
@@ -36,7 +39,7 @@ public struct TerminalAppExporter: TerminalExporter {
             throw TerminalExportUnsupportedError(message: "Terminal isn't installed.")
         }
         let file = fileURL(themeName: themeName)
-        try ExportFiles.write(try Self.profile(name: schemeName(forTheme: themeName), colors: colors), to: file)
+        try FileManager.default.writeAtomically(try Self.profile(name: schemeName(forTheme: themeName), colors: colors), to: file)
         try environment.open(file, app)
     }
 
@@ -45,7 +48,8 @@ public struct TerminalAppExporter: TerminalExporter {
     }
 
     public func addedMessage(scheme: String) -> String {
-        "Terminal opened a window with “\(scheme)” and added it to its profiles. To use it for every new window, open Terminal › Settings › Profiles, select it and click Default."
+        "Terminal opened a window with “\(scheme)” and added it to its profiles. "
+            + "To use it for every new window, open Terminal › Settings › Profiles, select it and click Default."
     }
 
     public func removedMessage(scheme: String) -> String { "" }
@@ -55,8 +59,8 @@ public struct TerminalAppExporter: TerminalExporter {
     }
 
     /// Terminal's keys for the 16 ANSI colors, in order.
-    static let ansiKeys = ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"].map { "ANSI\($0)Color" }
-        + ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"].map { "ANSIBright\($0)Color" }
+    static let ansiKeys = TerminalColors.ansiNames.map { "ANSI\($0)Color" }
+        + TerminalColors.ansiNames.map { "ANSIBright\($0)Color" }
 
     /// A `.terminal` file: a property list whose colors are keyed-archived NSColors.
     static func profile(name: String, colors: TerminalColors) throws -> Data {
@@ -77,8 +81,6 @@ public struct TerminalAppExporter: TerminalExporter {
     }
 
     private static func archive(_ color: RgbColor) throws -> Data {
-        let c = color.unitComponents
-        let nsColor = NSColor(srgbRed: c.red, green: c.green, blue: c.blue, alpha: 1)
-        return try NSKeyedArchiver.archivedData(withRootObject: nsColor, requiringSecureCoding: true)
+        try NSKeyedArchiver.archivedData(withRootObject: NSColor(color), requiringSecureCoding: true)
     }
 }

@@ -29,12 +29,20 @@ public struct RgbColor: Hashable, Sendable, CustomStringConvertible {
         default: return nil
         }
         guard let v = UInt32(hex6, radix: 16) else { return nil }
-        self.init(r: UInt8(truncatingIfNeeded: v >> 16), g: UInt8(truncatingIfNeeded: v >> 8), b: UInt8(truncatingIfNeeded: v))
+        self.init(
+            r: UInt8(truncatingIfNeeded: v >> 16),
+            g: UInt8(truncatingIfNeeded: v >> 8),
+            b: UInt8(truncatingIfNeeded: v))
     }
 
     public var hex: String { String(format: "#%02x%02x%02x", r, g, b) }
 
     public var description: String { hex }
+
+    /// Components in 0...1.
+    public var unitComponents: (red: Double, green: Double, blue: Double) {
+        (Double(r) / 255, Double(g) / 255, Double(b) / 255)
+    }
 
     /// WCAG relative luminance, 0 (black) to 1 (white).
     public var relativeLuminance: Double {

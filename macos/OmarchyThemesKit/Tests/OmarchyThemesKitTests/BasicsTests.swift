@@ -96,3 +96,29 @@ struct RepoRefTests {
         #expect(url.absoluteString == "https://raw.githubusercontent.com/o/r/HEAD/my%20themes/backgrounds/1%20dark.png")
     }
 }
+
+struct HelperTests {
+    let dir = TempDir()
+
+    @Test func writeAtomicallyCreatesTheFolderAndRemoveIgnoresMissingFiles() throws {
+        let file = dir.url.appending(path: "a/b/file.txt")
+
+        try FileManager.default.writeAtomically(Data("hi".utf8), to: file)
+        #expect(FileManager.default.contents(atPath: file.path) == Data("hi".utf8))
+
+        try FileManager.default.removeItemIfPresent(at: file)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        try FileManager.default.removeItemIfPresent(at: file)
+    }
+
+    @Test(arguments: [("tokyo night", "Tokyo night"), ("x", "X"), ("", ""), ("Éclair", "Éclair")])
+    func uppercasingFirstOnlyChangesTheFirstCharacter(text: String, expected: String) {
+        #expect(text.uppercasingFirst == expected)
+    }
+
+    @Test func ansiSwatchNamesMatchWhatTerminalColorsLooksUp() {
+        #expect((0..<16).map { TerminalColors.swatchName(ansi: $0) }.prefix(9)
+            == ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White", "Bright black"])
+        #expect(TerminalColors.swatchName(ansi: 15) == "Bright white")
+    }
+}

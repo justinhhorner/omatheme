@@ -127,20 +127,12 @@ enum FlatToml {
 
         private mutating func parseValue(key: [String]) throws {
             let flatKey = key.joined(separator: ".").lowercased()
+            guard definedKeys.insert(flatKey).inserted else { throw SyntaxError() }
             switch peek {
-            case "\"", "'":
-                let value = try parseString()
-                guard definedKeys.insert(flatKey).inserted else { throw SyntaxError() }
-                result[flatKey] = value
-            case "{":
-                guard definedKeys.insert(flatKey).inserted else { throw SyntaxError() }
-                try parseInlineTable(key: key)
-            case "[":
-                guard definedKeys.insert(flatKey).inserted else { throw SyntaxError() }
-                try skipArray()
-            default:
-                guard definedKeys.insert(flatKey).inserted else { throw SyntaxError() }
-                try skipScalar()
+            case "\"", "'": result[flatKey] = try parseString()
+            case "{": try parseInlineTable(key: key)
+            case "[": try skipArray()
+            default: try skipScalar()
             }
         }
 

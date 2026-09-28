@@ -25,7 +25,10 @@ public enum HTTPSessions {
 
     /// A session with URLSession's own cache turned off: `HTTPCache` does ETag revalidation itself
     /// and needs to see real 304s.
-    public static func make(requestTimeout: TimeInterval = 30, resourceTimeout: TimeInterval = 7 * 24 * 3600) -> URLSession {
+    public static func make(
+        requestTimeout: TimeInterval = 30,
+        resourceTimeout: TimeInterval = 7 * 24 * 3600
+    ) -> URLSession {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -48,6 +51,6 @@ public struct HTTPStatusError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         let reason = HTTPURLResponse.localizedString(forStatusCode: status)
-        return "\(host) returned \(status) \(reason.prefix(1).uppercased() + reason.dropFirst())."
+        return "\(host) returned \(status) \(reason.uppercasingFirst)."
     }
 }

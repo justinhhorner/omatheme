@@ -17,16 +17,13 @@ public struct WallpaperOptions: Codable, Sendable, Equatable {
 
     /// Tile and Span have no NSWorkspace equivalent and fall back to Fill.
     public init(fit: WallpaperFit, fillColor: RgbColor?) {
-        switch fit {
-        case .fill, .tile, .span:
-            self.init(scaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue, allowClipping: true, fillColor: fillColor)
-        case .fit:
-            self.init(scaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue, allowClipping: false, fillColor: fillColor)
-        case .stretch:
-            self.init(scaling: NSImageScaling.scaleAxesIndependently.rawValue, allowClipping: true, fillColor: fillColor)
-        case .center:
-            self.init(scaling: NSImageScaling.scaleNone.rawValue, allowClipping: true, fillColor: fillColor)
+        let (scaling, allowClipping): (NSImageScaling, Bool) = switch fit {
+        case .fill, .tile, .span: (.scaleProportionallyUpOrDown, true)
+        case .fit: (.scaleProportionallyUpOrDown, false)
+        case .stretch: (.scaleAxesIndependently, true)
+        case .center: (.scaleNone, true)
         }
+        self.init(scaling: scaling.rawValue, allowClipping: allowClipping, fillColor: fillColor)
     }
 }
 
@@ -93,22 +90,14 @@ public struct NSWorkspaceWallpaperAPI: WallpaperAPI {
         WallpaperOptions(
             scaling: (dictionary[.imageScaling] as? NSNumber)?.uintValue,
             allowClipping: (dictionary[.allowClipping] as? NSNumber)?.boolValue,
-            fillColor: (dictionary[.fillColor] as? NSColor).flatMap(rgb))
+            fillColor: (dictionary[.fillColor] as? NSColor).flatMap { RgbColor($0) })
     }
 
     static func dictionary(from options: WallpaperOptions) -> [NSWorkspace.DesktopImageOptionKey: Any] {
         var dictionary: [NSWorkspace.DesktopImageOptionKey: Any] = [:]
         if let scaling = options.scaling { dictionary[.imageScaling] = NSNumber(value: scaling) }
         if let allowClipping = options.allowClipping { dictionary[.allowClipping] = NSNumber(value: allowClipping) }
-        if let fill = options.fillColor {
-            dictionary[.fillColor] = NSColor(srgbRed: CGFloat(fill.r) / 255, green: CGFloat(fill.g) / 255, blue: CGFloat(fill.b) / 255, alpha: 1)
-        }
+        if let fill = options.fillColor { dictionary[.fillColor] = NSColor(fill) }
         return dictionary
-    }
-
-    private static func rgb(_ color: NSColor) -> RgbColor? {
-        guard let srgb = color.usingColorSpace(.sRGB) else { return nil }
-        func byte(_ v: CGFloat) -> UInt8 { UInt8((min(max(v, 0), 1) * 255).rounded()) }
-        return RgbColor(r: byte(srgb.redComponent), g: byte(srgb.greenComponent), b: byte(srgb.blueComponent))
     }
 }

@@ -7,7 +7,7 @@ let package = Package(
     products: [
         // Catalog, GitHub resolution, palettes, store and ThemeApplier. No AppKit.
         .library(name: "OmarchyThemesKit", targets: ["OmarchyThemesKit"]),
-        // The macOS DesktopBackend (NSWorkspace wallpaper, ImageIO conversion).
+        // The macOS DesktopBackend (NSWorkspace wallpaper, ImageIO conversion) and terminal exporters.
         .library(name: "OmarchyThemesMac", targets: ["OmarchyThemesMac"]),
     ],
     dependencies: [

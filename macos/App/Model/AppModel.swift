@@ -25,7 +25,7 @@ final class AppModel {
     /// Terminal apps a theme's colors can be sent to (see `TerminalExporters`).
     let terminals: [any TerminalExporter]
     /// Bumped after adding or removing, so views re-read `isAdded`.
-    private(set) var terminalRevision = 0
+    private var terminalRevision = 0
 
     // MARK: Catalog
 
@@ -52,8 +52,10 @@ final class AppModel {
     private(set) var downloads: [String: DownloadState] = [:]
     private(set) var applyingSlug: String?
     private var detailsCache: [String: ThemeDetails] = [:]
+    /// Bumped by Clear Cache, so lookups already in flight don't refill the cache.
+    private var cacheGeneration = 0
 
-    /// Result banners, keyed by where they're shown (see `BannerContext`).
+    /// Result banners, keyed by where they're shown.
     var banners: [BannerContext: Banner] = [:]
 
     var showWelcome = false
@@ -61,7 +63,8 @@ final class AppModel {
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         // OMARCHY_THEMES_DATA_DIR points the app at another data folder (fresh state for testing).
-        paths = environment["OMARCHY_THEMES_DATA_DIR"].map { AppPaths(root: URL(filePath: $0, directoryHint: .isDirectory)) } ?? .default()
+        paths = environment["OMARCHY_THEMES_DATA_DIR"]
+            .map { AppPaths(root: URL(filePath: $0, directoryHint: .isDirectory)) } ?? .default()
         try? paths.ensureCreated()
 
         let cache = HTTPCache(transport: URLSessionTransport(session: HTTPSessions.make()), directory: paths.cacheDir)
@@ -80,23 +83,27 @@ final class AppModel {
             ? DryRunDesktopBackend()
             : MacDesktopBackend(snapshotAssetsDir: paths.originalDesktopDir)
         applier = ThemeApplier(backend: backend, snapshots: FileSnapshotStore(paths: paths))
-
-        // In a dry run, terminal exports go to a folder in the data directory and nothing is opened,
-        // so UI checks can't touch real terminal settings either.
-        var terminalEnvironment = TerminalEnvironment.live(exportsDirectory: paths.root.appending(path: "terminal", directoryHint: .isDirectory))
-        if isDryRun {
-            let home = paths.root.appending(path: "dry-run-home", directoryHint: .isDirectory)
-            terminalEnvironment.homeDirectory = home
-            terminalEnvironment.configDirectory = home.appending(path: ".config", directoryHint: .isDirectory)
-            terminalEnvironment.open = { file, _ in log.info("Dry run: would open \(file.path, privacy: .public)") }
-        }
-        terminals = TerminalExporters.all(in: terminalEnvironment)
+        terminals = TerminalExporters.all(in: Self.terminalEnvironment(paths: paths, isDryRun: isDryRun))
 
         store.cleanUpStaging()
         settings = settingsStore.load()
         installed = store.list()
         hasOriginalSnapshot = applier.hasOriginalSnapshot
         showWelcome = !settings.welcomeSeen
+    }
+
+    /// In a dry run, terminal exports go to a folder in the data directory and nothing is opened,
+    /// so UI checks can't touch real terminal settings either.
+    private static func terminalEnvironment(paths: AppPaths, isDryRun: Bool) -> TerminalEnvironment {
+        var environment = TerminalEnvironment.live(
+            exportsDirectory: paths.root.appending(path: "terminal", directoryHint: .isDirectory))
+        if isDryRun {
+            let home = paths.root.appending(path: "dry-run-home", directoryHint: .isDirectory)
+            environment.homeDirectory = home
+            environment.configDirectory = home.appending(path: ".config", directoryHint: .isDirectory)
+            environment.open = { file, _ in log.info("Dry run: would open \(file.path, privacy: .public)") }
+        }
+        return environment
     }
 
     // MARK: Catalog
@@ -141,16 +148,16 @@ final class AppModel {
             let catalog = try await catalogService.refresh()
             show(catalog)
             catalogNotice = catalog.isStale
-                ? "Couldn't reach omarchy.org, so this is the catalog from \(catalog.fetchedAt.formatted(.relative(presentation: .named)))."
+                ? "Couldn't reach omarchy.org, so this is the catalog from \(catalog.fetchedAt.relativeDescription)."
                 : nil
             if let error = catalog.defaultThemesError, !catalog.entries.contains(where: \.isDefaultTheme) {
-                log.error("Default themes failed: \(String(describing: error), privacy: .public)")
+                logFailure("Default themes", error)
                 defaultThemesNotice = "The themes that come with Omarchy couldn't be loaded from GitHub. \(error.localizedDescription)"
             } else {
                 defaultThemesNotice = nil
             }
         } catch {
-            log.error("Catalog refresh failed: \(String(describing: error), privacy: .public)")
+            logFailure("Catalog refresh", error)
             let message = error is CatalogFormatError
                 ? error.localizedDescription
                 : "Couldn't load themes from omarchy.org. Check your internet connection and try again."
@@ -179,6 +186,11 @@ final class AppModel {
         installed.first { $0.slug == slug }
     }
 
+    /// The downloaded theme's name if there is one (it's what was saved), else the catalog's.
+    func themeName(for entry: CatalogEntry) -> String {
+        installedTheme(entry.slug)?.name ?? entry.name
+    }
+
     func cachedDetails(_ slug: String) -> ThemeDetails? {
         detailsCache[slug]
     }
@@ -187,15 +199,20 @@ final class AppModel {
     /// Like the catalog refresh, the request runs in a model-owned task shared by concurrent
     /// callers, so leaving the page doesn't waste the (rate-limited) API call.
     func details(for entry: CatalogEntry, force: Bool = false) async throws -> ThemeDetails {
-        if !force, let cached = detailsCache[entry.slug] { return cached }
-        if let running = resolveTasks[entry.slug] {
-            return try await running.value
+        if !force {
+            if let cached = detailsCache[entry.slug] { return cached }
+            if let running = resolveTasks[entry.slug] { return try await running.value }
         }
+        // A forced lookup (Download Again) starts fresh rather than joining one already running.
+        let generation = cacheGeneration
         let task = Task { [resolver] in try await resolver.resolve(entry) }
         resolveTasks[entry.slug] = task
-        defer { resolveTasks[entry.slug] = nil }
+        defer {
+            if resolveTasks[entry.slug] == task { resolveTasks[entry.slug] = nil }
+        }
         let details = try await task.value
-        detailsCache[entry.slug] = details
+        // Don't refill the cache if it was cleared while this was in flight.
+        if generation == cacheGeneration { detailsCache[entry.slug] = details }
         return details
     }
 
@@ -226,13 +243,7 @@ final class AppModel {
                 reloadInstalled()
                 return installed
             } catch {
-                if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
-                    banners[.theme(entry.slug)] = Banner(kind: .info, title: "Download cancelled", message: "Nothing was saved.")
-                } else {
-                    log.error("Download of \(entry.slug, privacy: .public) failed: \(String(describing: error), privacy: .public)")
-                    let message = (error as? URLError)?.code == .timedOut ? "The connection timed out. Try again." : error.localizedDescription
-                    banners[.theme(entry.slug)] = Banner(kind: .error, title: "Download failed", message: message)
-                }
+                banners[.theme(entry.slug)] = downloadFailureBanner(error, slug: entry.slug)
                 return nil
             }
         }
@@ -240,18 +251,31 @@ final class AppModel {
         return await task.value
     }
 
+    private func downloadFailureBanner(_ error: any Error, slug: String) -> Banner {
+        if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+            return Banner(kind: .info, title: "Download cancelled", message: "Nothing was saved.")
+        }
+        logFailure("Download of \(slug)", error)
+        let message = (error as? URLError)?.code == .timedOut
+            ? "The connection timed out. Try again."
+            : error.localizedDescription
+        return Banner(kind: .error, title: "Download failed", message: message)
+    }
+
     func cancelDownload(_ slug: String) {
         downloads[slug]?.task?.cancel()
     }
 
-    func remove(_ theme: InstalledTheme) {
+    /// Removes a downloaded theme. Returns the outcome for the caller to show where the user is.
+    func remove(_ theme: InstalledTheme) -> Banner {
+        defer { reloadInstalled() }
         do {
             try store.remove(theme.slug)
-            banners[.theme(theme.slug)] = Banner(kind: .info, title: "Download removed", message: "\(theme.name) was removed from this Mac.")
+            return Banner(kind: .info, title: "Download removed", message: "\(theme.name) was removed from this Mac.")
         } catch {
-            banners[.theme(theme.slug)] = Banner(kind: .error, title: "Couldn't remove \(theme.name)", message: error.localizedDescription)
+            logFailure("Removing \(theme.slug)", error)
+            return Banner(kind: .error, title: "Couldn't remove \(theme.name)", message: error.localizedDescription)
         }
-        reloadInstalled()
     }
 
     func reloadInstalled() {
@@ -264,11 +288,18 @@ final class AppModel {
 
     var supportedFits: [WallpaperFit] { applier.supportedFits }
 
+    /// The saved one-click fit, or Fill if this Mac doesn't offer it (e.g. Tile from Windows).
+    var defaultFit: WallpaperFit {
+        supportedFits.contains(settings.applyDefaults.fit) ? settings.applyDefaults.fit : .fill
+    }
+
     var activeSlug: String? { settings.lastAppliedSlug }
 
     /// The wallpaper to preselect for a downloaded theme: the one last applied, else the first.
     func preferredWallpaper(for theme: InstalledTheme) -> String? {
-        if settings.lastAppliedSlug == theme.slug, let last = settings.lastAppliedWallpaper, theme.wallpapers.contains(last) {
+        if settings.lastAppliedSlug == theme.slug,
+           let last = settings.lastAppliedWallpaper,
+           theme.wallpapers.contains(last) {
             return last
         }
         return theme.wallpapers.first
@@ -289,8 +320,12 @@ final class AppModel {
             let result = try await applier.apply(request)
             updateSettings { $0 = $0.afterApply(theme.slug, wallpaperFile: request.wallpaper?.lastPathComponent, result: result) }
             return ApplySummary.describe(result, themeName: theme.name, mode: theme.mode)
-        } catch {
+        } catch is CancellationError {
             return ApplySummary(kind: .info, title: "Apply cancelled", message: "Nothing was changed.")
+        } catch {
+            // ThemeApplier reports per-step failures in its result; anything thrown is unexpected.
+            logFailure("Applying \(theme.slug)", error)
+            return ApplySummary(kind: .error, title: "Couldn't apply \(theme.name)", message: error.localizedDescription)
         }
     }
 
@@ -359,10 +394,15 @@ final class AppModel {
         updateSettings { $0.terminalApp = id }
     }
 
-    /// Adds the theme's colors to the selected terminal.
+    /// Whether the selected terminal already has the theme's colors.
+    func isAddedToSelectedTerminal(_ entry: CatalogEntry) -> Bool {
+        _ = terminalRevision // Observed, so views ask again after an add or remove.
+        return selectedTerminal.isAdded(slug: entry.slug, themeName: themeName(for: entry))
+    }
+
     func addToTerminal(_ entry: CatalogEntry, palette: Palette) async -> Banner {
         let exporter = selectedTerminal
-        let name = installedTheme(entry.slug)?.name ?? entry.name
+        let name = themeName(for: entry)
         let scheme = exporter.schemeName(forTheme: name)
         let colors = TerminalColors(await paletteForTerminal(entry, saved: palette))
         do {
@@ -375,7 +415,7 @@ final class AppModel {
             }
             return Banner(kind: .success, title: "Added to \(exporter.displayName)", message: exporter.addedMessage(scheme: scheme))
         } catch {
-            log.error("Adding \(entry.slug, privacy: .public) to \(exporter.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            logFailure("Adding \(entry.slug) to \(exporter.id)", error)
             return Banner(kind: .error, title: "Couldn't add to \(exporter.displayName)", message: error.localizedDescription)
         }
     }
@@ -383,18 +423,21 @@ final class AppModel {
     /// Removes the theme's colors from the selected terminal, or says how to where that's manual.
     func removeFromTerminal(_ entry: CatalogEntry) -> Banner {
         let exporter = selectedTerminal
-        let name = installedTheme(entry.slug)?.name ?? entry.name
+        let name = themeName(for: entry)
         let scheme = exporter.schemeName(forTheme: name)
         guard exporter.canRemove else {
-            return Banner(kind: .info, title: "Remove it in \(exporter.displayName)", message: exporter.removeInstructions(scheme: scheme))
+            return Banner(
+                kind: .info, title: "Remove it in \(exporter.displayName)", message: exporter.removeInstructions(scheme: scheme))
         }
         do {
             try exporter.remove(slug: entry.slug, themeName: name)
             terminalRevision += 1
-            return Banner(kind: .info, title: "Removed from \(exporter.displayName)", message: exporter.removedMessage(scheme: scheme))
+            return Banner(
+                kind: .info, title: "Removed from \(exporter.displayName)", message: exporter.removedMessage(scheme: scheme))
         } catch {
-            log.error("Removing \(entry.slug, privacy: .public) from \(exporter.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
-            return Banner(kind: .error, title: "Couldn't remove it from \(exporter.displayName)", message: error.localizedDescription)
+            logFailure("Removing \(entry.slug) from \(exporter.id)", error)
+            return Banner(
+                kind: .error, title: "Couldn't remove it from \(exporter.displayName)", message: error.localizedDescription)
         }
     }
 
@@ -415,7 +458,12 @@ final class AppModel {
         change(&updated)
         guard updated != settings else { return }
         settings = updated
-        try? settingsStore.save(updated)
+        do {
+            try settingsStore.save(updated)
+        } catch {
+            // The change still applies for this session; it just won't be there next launch.
+            logFailure("Saving settings", error)
+        }
     }
 
     func dismissWelcome() {
@@ -425,45 +473,22 @@ final class AppModel {
 
     func clearCache() throws {
         let fm = FileManager.default
-        if fm.fileExists(atPath: paths.cacheDir.path) {
-            try fm.removeItem(at: paths.cacheDir)
-        }
+        try fm.removeItemIfPresent(at: paths.cacheDir)
         try fm.createDirectory(at: paths.cacheDir, withIntermediateDirectories: true)
         images.clearMemory()
         detailsCache.removeAll()
+        cacheGeneration += 1
+    }
+
+    /// Logs "<action> failed: <error>".
+    private func logFailure(_ action: String, _ error: any Error) {
+        log.error("\(action, privacy: .public) failed: \(String(describing: error), privacy: .public)")
     }
 }
 
 enum SidebarItem: Hashable {
     case gallery
     case downloaded
-}
-
-enum BannerContext: Hashable {
-    case gallery
-    case currentTheme
-    case downloaded
-    case settings
-    case theme(String)
-    /// Results of sending a theme to a terminal, shown in that section of its page.
-    case terminal(String)
-}
-
-struct Banner: Equatable, Identifiable {
-    let id = UUID()
-    var kind: SummaryKind
-    var title: String
-    var message: String
-
-    init(kind: SummaryKind, title: String, message: String) {
-        self.kind = kind
-        self.title = title
-        self.message = message
-    }
-
-    init(_ summary: ApplySummary) {
-        self.init(kind: summary.kind, title: summary.title, message: summary.message)
-    }
 }
 
 /// Progress of one theme download, shown on its detail page.

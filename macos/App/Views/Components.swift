@@ -4,7 +4,8 @@ import SwiftUI
 
 extension Color {
     init(_ rgb: RgbColor) {
-        self.init(.sRGB, red: Double(rgb.r) / 255, green: Double(rgb.g) / 255, blue: Double(rgb.b) / 255)
+        let c = rgb.unitComponents
+        self.init(.sRGB, red: c.red, green: c.green, blue: c.blue)
     }
 }
 
@@ -27,6 +28,8 @@ extension SummaryKind {
         }
     }
 }
+
+// MARK: Banners
 
 /// An inline result or notice, dismissable, like an InfoBar.
 struct BannerView: View {
@@ -76,6 +79,8 @@ struct ContextBanner: View {
     }
 }
 
+// MARK: Badges
+
 struct ModeBadge: View {
     let mode: AppearanceMode
 
@@ -94,6 +99,15 @@ struct StatusBadge: View {
     let symbol: String
     var tint: Color = .accentColor
 
+    /// The theme is on the desktop.
+    static var applied: StatusBadge {
+        StatusBadge(title: "Applied", symbol: "checkmark.circle.fill", tint: .green)
+    }
+
+    static var downloaded: StatusBadge {
+        StatusBadge(title: "Downloaded", symbol: "arrow.down.circle.fill")
+    }
+
     var body: some View {
         Label(title, systemImage: symbol)
             .font(.caption.weight(.semibold))
@@ -105,6 +119,8 @@ struct StatusBadge: View {
     }
 }
 
+// MARK: Colors
+
 /// A named color: swatch plus label and hex. Click to copy the hex value.
 struct ColorChip: View {
     let name: String
@@ -113,8 +129,7 @@ struct ColorChip: View {
 
     var body: some View {
         Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(color.hex, forType: .string)
+            Pasteboard.copy(color.hex)
             copied = true
             Task {
                 try? await Task.sleep(for: .seconds(1.2))
@@ -155,8 +170,31 @@ struct SwatchSquare: View {
     }
 }
 
-extension Date {
-    var relativeDescription: String {
-        formatted(.relative(presentation: .named))
+// MARK: Shared actions
+
+struct ShowInFinderButton: View {
+    let url: URL
+
+    var body: some View {
+        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+    }
+}
+
+/// The message of the "Remove <theme>?" confirmation.
+struct RemoveDownloadMessage: View {
+    /// Whether the theme is the one on the desktop.
+    let isOnDesktop: Bool
+
+    var body: some View {
+        Text(isOnDesktop
+            ? "Its wallpapers are deleted from this Mac, including the one on your desktop. You can download the theme again at any time."
+            : "Its wallpapers are deleted from this Mac. You can download the theme again at any time.")
+    }
+}
+
+enum Pasteboard {
+    static func copy(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
     }
 }

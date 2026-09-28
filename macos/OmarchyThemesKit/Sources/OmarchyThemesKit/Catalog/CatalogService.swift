@@ -38,7 +38,8 @@ public struct CatalogService: Sendable {
         guard !entries.isEmpty else { return nil }
 
         let defaults = github?.cachedTree(for: DefaultThemes.repo).map(DefaultThemes.entries(from:)) ?? []
-        return ThemeCatalog(entries: defaults + entries, fetchedAt: cached.fetchedAt, isStale: false, staleReason: nil, defaultThemesError: nil)
+        return ThemeCatalog(
+            entries: defaults + entries, fetchedAt: cached.fetchedAt, isStale: false, staleReason: nil, defaultThemesError: nil)
     }
 
     /// Re-fetches omarchy.org/themes (conditional GET), falling back to the cached copy if offline.

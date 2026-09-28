@@ -36,7 +36,6 @@ public final class HTTPCache: Sendable {
         do {
             (data, response) = try await transport.send(request)
         } catch let error as URLError where error.code != .cancelled && !Task.isCancelled {
-            // Network failure or timeout (not cancellation).
             if let cached { return cached.stale(because: error) }
             throw error
         }
@@ -77,12 +76,13 @@ public final class HTTPCache: Sendable {
     }
 
     private func store(_ response: CachedResponse, for url: URL) throws {
-        try JSONFile.writeAtomic(response.body, to: paths(for: url).body)
+        try FileManager.default.writeAtomically(response.body, to: paths(for: url).body)
         try writeMeta(for: url, response)
     }
 
     private func writeMeta(for url: URL, _ response: CachedResponse) throws {
-        let meta = CacheMeta(url: url.absoluteString, fetchedAt: response.fetchedAt, etag: response.etag, lastModified: response.lastModified)
+        let meta = CacheMeta(
+            url: url.absoluteString, fetchedAt: response.fetchedAt, etag: response.etag, lastModified: response.lastModified)
         try JSONFile.write(meta, to: paths(for: url).meta)
     }
 

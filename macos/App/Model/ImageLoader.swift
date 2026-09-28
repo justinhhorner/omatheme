@@ -1,5 +1,6 @@
 import AppKit
 import ImageIO
+import OmarchyThemesKit
 import SwiftUI
 
 /// Loads screenshots and wallpapers as downsampled thumbnails. Remote images go through a disk
@@ -12,7 +13,7 @@ final class ImageLoader: Sendable {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20, directory: cacheDirectory)
         configuration.requestCachePolicy = .returnCacheDataElseLoad
-        configuration.httpAdditionalHeaders = ["User-Agent": "OmarchyThemes/0.1"]
+        configuration.httpAdditionalHeaders = ["User-Agent": HTTPSessions.userAgent]
         session = URLSession(configuration: configuration)
     }
 
@@ -89,15 +90,17 @@ struct ThumbnailImage: View {
                 }
             }
             .clipped()
-        .task(id: url) {
-            image = nil
-            failed = false
-            guard let url else { return }
-            let loaded = await model.images.thumbnail(for: url, maxPixelSize: maxPixelSize)
-            withAnimation(.easeOut(duration: 0.15)) {
-                image = loaded
-                failed = loaded == nil
-            }
+            .task(id: url) { await load() }
+    }
+
+    private func load() async {
+        image = nil
+        failed = false
+        guard let url else { return }
+        let loaded = await model.images.thumbnail(for: url, maxPixelSize: maxPixelSize)
+        withAnimation(.easeOut(duration: 0.15)) {
+            image = loaded
+            failed = loaded == nil
         }
     }
 }

@@ -6,8 +6,6 @@ import Foundation
 ///
 /// Both are accepted, and a file mixing them is fine.
 public enum ColorsTomlParser {
-    private static let ansiNames = ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"]
-
     private static let namedKeys = [
         "red", "orange", "yellow", "green", "cyan", "blue", "magenta", "brown",
         "bright_red", "bright_yellow", "bright_green", "bright_cyan", "bright_blue", "bright_magenta",
@@ -17,11 +15,15 @@ public enum ColorsTomlParser {
         let values = FlatToml.parse(text)
         let get = colorLookup(values)
 
-        guard let background = get("background") else { throw PaletteParseError(message: "colors.toml has no valid 'background' color.") }
-        guard let foreground = get("foreground") else { throw PaletteParseError(message: "colors.toml has no valid 'foreground' color.") }
+        guard let background = get("background") else {
+            throw PaletteParseError(message: "colors.toml has no valid 'background' color.")
+        }
+        guard let foreground = get("foreground") else {
+            throw PaletteParseError(message: "colors.toml has no valid 'foreground' color.")
+        }
 
         var swatches: [NamedColor] = (0..<16).compactMap { i in
-            get("color\(i)").map { NamedColor(name: i < 8 ? ansiNames[i] : "Bright " + ansiNames[i - 8].lowercased(), color: $0) }
+            get("color\(i)").map { NamedColor(name: TerminalColors.swatchName(ansi: i), color: $0) }
         }
         if swatches.isEmpty {
             swatches = namedKeys.compactMap { key in get(key).map { NamedColor(name: humanize(key), color: $0) } }
@@ -52,14 +54,15 @@ public enum ColorsTomlParser {
         { key in values[key.lowercased()].flatMap(RgbColor.init(hex:)) }
     }
 
+    /// "bright_red" → "Bright red".
     private static func humanize(_ key: String) -> String {
-        key.prefix(1).uppercased() + key.dropFirst().replacing("_", with: " ")
+        key.replacing("_", with: " ").uppercasingFirst
     }
 }
 
 /// alacritty.toml, the fallback for themes that predate colors.toml.
 public enum AlacrittyParser {
-    private static let names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+    private static let keyNames = TerminalColors.ansiNames.map { $0.lowercased() }
 
     public static func parse(_ text: String) throws -> Palette {
         let values = FlatToml.parse(text)
@@ -72,13 +75,9 @@ public enum AlacrittyParser {
             throw PaletteParseError(message: "alacritty.toml has no valid [colors.primary] foreground.")
         }
 
-        var swatches: [NamedColor] = []
-        for (group, label) in [("normal", ""), ("bright", "Bright ")] {
-            for name in names {
-                if let c = get("colors.\(group).\(name)") {
-                    swatches.append(NamedColor(name: label.isEmpty ? name.prefix(1).uppercased() + name.dropFirst() : label + name, color: c))
-                }
-            }
+        let swatches: [NamedColor] = (0..<16).compactMap { i in
+            let group = i < 8 ? "normal" : "bright"
+            return get("colors.\(group).\(keyNames[i % 8])").map { NamedColor(name: TerminalColors.swatchName(ansi: i), color: $0) }
         }
 
         return Palette(

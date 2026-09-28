@@ -60,13 +60,8 @@ public enum JSONFile {
         return try? makeDecoder().decode(type, from: data)
     }
 
-    /// Writes via a temp file + rename so a crash never leaves a half-written file.
+    /// Writes atomically (see `FileManager.writeAtomically`).
     public static func write<T: Encodable>(_ value: T, to url: URL) throws {
-        try writeAtomic(makeEncoder().encode(value), to: url)
-    }
-
-    public static func writeAtomic(_ data: Data, to url: URL) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: url, options: .atomic)
+        try FileManager.default.writeAtomically(makeEncoder().encode(value), to: url)
     }
 }

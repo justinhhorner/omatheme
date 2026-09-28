@@ -124,7 +124,8 @@ struct ThemeResolverTests {
         let details = try await resolver().resolve(entry)
 
         #expect(details.palette != nil)
-        #expect(details.wallpapers.map(\.downloadURL.absoluteString) == ["https://raw.githubusercontent.com/o/mono/main/themes/foo/backgrounds/1.png"])
+        let expected = ["https://raw.githubusercontent.com/o/mono/main/themes/foo/backgrounds/1.png"]
+        #expect(details.wallpapers.map(\.downloadURL.absoluteString) == expected)
     }
 
     @Test func rateLimitSurfacesResetTime() async throws {

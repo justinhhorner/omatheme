@@ -30,8 +30,8 @@ public struct GhosttyExporter: TerminalExporter {
     }
 
     func fileURL(themeName: String) -> URL {
-        // The file name is the name Ghostty's `theme =` refers to. Theme names can't contain "/".
-        themesDirectory.appending(path: schemeName(forTheme: themeName).replacing("/", with: "-"))
+        // The file name is the name Ghostty's `theme =` refers to.
+        themesDirectory.appending(path: schemeFileName(forTheme: themeName))
     }
 
     public func isAdded(slug: String, themeName: String) -> Bool {
@@ -40,11 +40,11 @@ public struct GhosttyExporter: TerminalExporter {
 
     public func add(slug: String, themeName: String, colors: TerminalColors) throws {
         let text = Self.themeFile(name: schemeName(forTheme: themeName), colors: colors)
-        try ExportFiles.write(Data(text.utf8), to: fileURL(themeName: themeName))
+        try FileManager.default.writeAtomically(Data(text.utf8), to: fileURL(themeName: themeName))
     }
 
     public func remove(slug: String, themeName: String) throws {
-        try ExportFiles.removeIfPresent(fileURL(themeName: themeName))
+        try FileManager.default.removeItemIfPresent(at: fileURL(themeName: themeName))
     }
 
     public func addedMessage(scheme: String) -> String {

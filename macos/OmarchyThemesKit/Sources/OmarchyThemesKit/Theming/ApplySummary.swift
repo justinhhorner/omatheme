@@ -31,12 +31,15 @@ public struct ApplySummary: Sendable, Equatable {
 
         if failed.isEmpty {
             if applied.isEmpty {
-                return ApplySummary(kind: .info, title: "Nothing changed", message: "All options were turned off, so \(themeName) wasn't applied.")
+                return ApplySummary(
+                    kind: .info, title: "Nothing changed", message: "All options were turned off, so \(themeName) wasn't applied.")
             }
             return ApplySummary(kind: .success, title: "\(themeName) applied", message: "Updated \(joinList(applied)).")
         }
 
-        let problems = failed.map { "\(capitalize(label($0.step, mode))): \($0.error ?? "Unknown error.")" }.joined(separator: " ")
+        let problems = failed
+            .map { "\(label($0.step, mode).uppercasingFirst): \($0.error ?? "Unknown error.")" }
+            .joined(separator: " ")
         return applied.isEmpty
             ? ApplySummary(kind: .error, title: "Couldn't apply \(themeName)", message: problems)
             : ApplySummary(kind: .warning, title: "\(themeName) partly applied", message: "Updated \(joinList(applied)). \(problems)")
@@ -49,10 +52,6 @@ public struct ApplySummary: Sendable, Equatable {
         case .accentColor: "the accent color"
         case .saveOriginal: "your saved desktop"
         }
-    }
-
-    private static func capitalize(_ s: String) -> String {
-        s.prefix(1).uppercased() + s.dropFirst()
     }
 
     static func joinList(_ items: [String]) -> String {

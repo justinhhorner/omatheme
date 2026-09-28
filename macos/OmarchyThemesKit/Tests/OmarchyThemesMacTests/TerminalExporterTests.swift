@@ -76,7 +76,8 @@ struct ITermExporterTests {
     }
 
     @Test func profileHasEveryColorAsSRGBComponents() throws {
-        let json = try JSONSerialization.jsonObject(with: ITermExporter.profileJSON(slug: "tokyo", name: "Tokyo Night (Omarchy)", colors: tokyo)) as? [String: Any]
+        let data = try ITermExporter.profileJSON(slug: "tokyo", name: "Tokyo Night (Omarchy)", colors: tokyo)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let profile = try #require((json?["Profiles"] as? [[String: Any]])?.first)
 
         #expect(profile["Name"] as? String == "Tokyo Night (Omarchy)")

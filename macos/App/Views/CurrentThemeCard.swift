@@ -9,8 +9,7 @@ struct CurrentThemeCard: View {
 
     private var details: String {
         let mode = theme.mode == .light ? "Light theme" : "Dark theme"
-        let count = theme.wallpapers.count == 1 ? "1 wallpaper" : "\(theme.wallpapers.count) wallpapers"
-        return "\(mode) · \(count)"
+        return "\(mode) · \(theme.wallpaperCountDescription)"
     }
 
     /// Background, foreground and accent, then up to eight terminal colors.
@@ -22,59 +21,18 @@ struct CurrentThemeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 16) {
-                ThumbnailImage(url: theme.screenshotURL ?? theme.wallpapers.first.map(theme.wallpaperURL), maxPixelSize: 640)
+                ThumbnailImage(url: theme.thumbnailURL, maxPixelSize: 640)
                     .frame(width: 224, height: 126)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.1)))
                     .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 10) {
-                        Text(theme.name)
-                            .font(.title2.weight(.bold))
-                        StatusBadge(title: "On your desktop", symbol: "checkmark.circle.fill", tint: .green)
-                    }
-                    Text(details)
-                        .foregroundStyle(.secondary)
-                    if !strip.isEmpty {
-                        HStack(spacing: 0) {
-                            ForEach(Array(strip.enumerated()), id: \.offset) { _, color in
-                                Rectangle().fill(Color(color))
-                            }
-                        }
-                        .frame(width: 220, height: 10)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
-                        .accessibilityHidden(true)
-                    }
-                    NavigationLink(value: model.entry(for: theme)) {
-                        Text("View Theme")
-                    }
-                    .buttonStyle(.bordered)
-                    .padding(.top, 2)
-                    .accessibilityIdentifier("viewCurrentThemeButton")
-                }
+                summary
                 Spacer(minLength: 0)
             }
 
             if !theme.wallpapers.isEmpty {
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 10) {
-                        ForEach(theme.wallpapers, id: \.self) { file in
-                            CurrentWallpaperTile(
-                                url: theme.wallpaperURL(file),
-                                name: file,
-                                isCurrent: file == model.currentWallpaper,
-                                isApplying: file == model.settingWallpaper,
-                                isEnabled: model.applyingSlug == nil
-                            ) {
-                                Task { await model.setCurrentWallpaper(file) }
-                            }
-                        }
-                    }
-                    .padding(4)
-                }
-                .scrollIndicators(.visible)
+                wallpapers
             }
 
             ContextBanner(context: .currentTheme)
@@ -86,6 +44,59 @@ struct CurrentThemeCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Current theme, \(theme.name)")
         .accessibilityIdentifier("currentThemeCard")
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text(theme.name)
+                    .font(.title2.weight(.bold))
+                StatusBadge(title: "On your desktop", symbol: "checkmark.circle.fill", tint: .green)
+            }
+            Text(details)
+                .foregroundStyle(.secondary)
+            if !strip.isEmpty {
+                colorStrip
+            }
+            NavigationLink(value: model.entry(for: theme)) {
+                Text("View Theme")
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 2)
+            .accessibilityIdentifier("viewCurrentThemeButton")
+        }
+    }
+
+    private var colorStrip: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(strip.enumerated()), id: \.offset) { _, color in
+                Rectangle().fill(Color(color))
+            }
+        }
+        .frame(width: 220, height: 10)
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
+        .accessibilityHidden(true)
+    }
+
+    private var wallpapers: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 10) {
+                ForEach(theme.wallpapers, id: \.self) { file in
+                    CurrentWallpaperTile(
+                        url: theme.wallpaperURL(file),
+                        name: file,
+                        isCurrent: file == model.currentWallpaper,
+                        isApplying: file == model.settingWallpaper,
+                        isEnabled: model.applyingSlug == nil
+                    ) {
+                        Task { await model.setCurrentWallpaper(file) }
+                    }
+                }
+            }
+            .padding(4)
+        }
+        .scrollIndicators(.visible)
     }
 }
 

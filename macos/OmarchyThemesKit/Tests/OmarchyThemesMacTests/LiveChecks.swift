@@ -34,7 +34,7 @@ struct LiveChecks {
             let details = try await resolver.resolve(entry)
             let palette = details.palette.map { "\($0.source) bg \($0.background) accent \($0.accent) \($0.swatches.count) swatches" }
                 ?? "no palette: \(details.paletteError ?? "?")"
-            print("\(slug): \(details.mode), \(details.wallpapers.count) wallpapers [\(details.wallpapers.prefix(3).map(\.fileName).joined(separator: ", "))], \(palette)")
+            print("\(slug): \(Self.summary(details)), \(palette)")
             #expect(details.canApply)
         }
     }
@@ -51,7 +51,7 @@ struct LiveChecks {
         for slug in ["omarchy.tokyo-night", "omarchy.catppuccin-latte"] {
             let entry = try #require(defaults.first { $0.slug == slug })
             let details = try await ThemeResolver(github: github).resolve(entry)
-            print("\(entry.name): \(details.mode), \(details.wallpapers.count) wallpapers [\(details.wallpapers.prefix(3).map(\.fileName).joined(separator: ", "))], accent \(details.palette?.accent.hex ?? "none")")
+            print("\(entry.name): \(Self.summary(details)), accent \(details.palette?.accent.hex ?? "none")")
             #expect(details.palette != nil)
             #expect(!details.wallpapers.isEmpty)
         }
@@ -65,7 +65,8 @@ struct LiveChecks {
 
         let progress = ProgressLog()
         let destination = temp.url.appending(path: wallpaper.fileName)
-        try await URLSessionDownloader(session: HTTPSessions.make()).download(from: wallpaper.downloadURL, to: destination, progress: progress.record)
+        try await URLSessionDownloader(session: HTTPSessions.make())
+            .download(from: wallpaper.downloadURL, to: destination, progress: progress.record)
 
         let size = try #require(try destination.resourceValues(forKeys: [.fileSizeKey]).fileSize)
         print("Downloaded \(wallpaper.fileName): \(size) bytes, \(progress.count) progress reports, last \(progress.last ?? -1)")
@@ -85,6 +86,12 @@ struct LiveChecks {
             print("Screen \(screen.screenID): \(screen.imageURL?.path ?? "none") \(screen.options)")
         }
         #expect(!screens.isEmpty)
+    }
+
+    /// "dark, 3 wallpapers [1.png, 2.png, 3.png]" (at most three names).
+    static func summary(_ details: ThemeDetails) -> String {
+        let names = details.wallpapers.prefix(3).map(\.fileName).joined(separator: ", ")
+        return "\(details.mode), \(details.wallpapers.count) wallpapers [\(names)]"
     }
 }
 

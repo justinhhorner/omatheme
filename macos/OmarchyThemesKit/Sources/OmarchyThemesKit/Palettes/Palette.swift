@@ -45,7 +45,8 @@ public struct Palette: Hashable, Sendable, Codable {
 
     public init(
         background: RgbColor, foreground: RgbColor, accent: RgbColor, cursor: RgbColor? = nil, selection: RgbColor? = nil,
-        muted: RgbColor? = nil, brightForeground: RgbColor? = nil, declaredMode: AppearanceMode? = nil, swatches: [NamedColor] = [], source: PaletteSource
+        muted: RgbColor? = nil, brightForeground: RgbColor? = nil, declaredMode: AppearanceMode? = nil,
+        swatches: [NamedColor] = [], source: PaletteSource
     ) {
         self.background = background
         self.foreground = foreground

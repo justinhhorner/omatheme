@@ -23,9 +23,7 @@ public struct URLSessionDownloader: Downloader {
         }
         try Task.checkCancellation()
 
-        if FileManager.default.fileExists(atPath: destination.path) {
-            try FileManager.default.removeItem(at: destination)
-        }
+        try FileManager.default.removeItemIfPresent(at: destination)
         try FileManager.default.moveItem(at: temporary, to: destination)
     }
 

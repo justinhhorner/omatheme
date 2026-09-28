@@ -11,29 +11,16 @@ struct ContentView: View {
         @Bindable var model = model
 
         NavigationSplitView {
-            List(selection: $model.sidebarSelection) {
-                Section("Themes") {
-                    Label("Gallery", systemImage: "square.grid.2x2")
-                        .tag(SidebarItem.gallery)
-                        .accessibilityIdentifier("sidebar.gallery")
-                    Label("Downloaded", systemImage: "arrow.down.circle")
-                        .badge(model.installed.count)
-                        .tag(SidebarItem.downloaded)
-                        .accessibilityIdentifier("sidebar.downloaded")
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 280)
+            sidebar
         } detail: {
             switch model.sidebarSelection ?? .gallery {
             case .gallery:
-                NavigationStack(path: $galleryPath) {
+                themeStack(path: $galleryPath) {
                     GalleryView()
-                        .navigationDestination(for: CatalogEntry.self) { ThemeDetailView(entry: $0) }
                 }
             case .downloaded:
-                NavigationStack(path: $downloadedPath) {
+                themeStack(path: $downloadedPath) {
                     DownloadedView { downloadedPath.append($0) }
-                        .navigationDestination(for: CatalogEntry.self) { ThemeDetailView(entry: $0) }
                 }
             }
         }
@@ -42,15 +29,46 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) {
             if model.isDryRun {
-                Text("Dry run: applying a theme won't change your desktop")
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(.orange.opacity(0.9), in: Capsule())
-                    .foregroundStyle(.white)
-                    .padding(8)
-                    .allowsHitTesting(false)
+                DryRunBadge()
             }
         }
+    }
+
+    private var sidebar: some View {
+        @Bindable var model = model
+
+        return List(selection: $model.sidebarSelection) {
+            Section("Themes") {
+                Label("Gallery", systemImage: "square.grid.2x2")
+                    .tag(SidebarItem.gallery)
+                    .accessibilityIdentifier("sidebar.gallery")
+                Label("Downloaded", systemImage: "arrow.down.circle")
+                    .badge(model.installed.count)
+                    .tag(SidebarItem.downloaded)
+                    .accessibilityIdentifier("sidebar.downloaded")
+            }
+        }
+        .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 280)
+    }
+
+    /// A drill-in stack whose pages are themes.
+    private func themeStack(path: Binding<[CatalogEntry]>, @ViewBuilder root: () -> some View) -> some View {
+        NavigationStack(path: path) {
+            root()
+                .navigationDestination(for: CatalogEntry.self) { ThemeDetailView(entry: $0) }
+        }
+    }
+}
+
+private struct DryRunBadge: View {
+    var body: some View {
+        Text("Dry run: applying a theme won't change your desktop")
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(.orange.opacity(0.9), in: Capsule())
+            .foregroundStyle(.white)
+            .padding(8)
+            .allowsHitTesting(false)
     }
 }

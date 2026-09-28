@@ -162,7 +162,7 @@ What was built, per the confirmed plan. See README "Building on macOS" and `docs
 
 - `macos/OmarchyThemesKit` (Swift package, `swift test`): target `OmarchyThemesKit` (no AppKit) ports Core;
   target `OmarchyThemesMac` holds `MacDesktopBackend` behind a fake-able `WallpaperAPI` (mirrors
-  Platform.Windows). Tests: 111 Kit + 29 backend (+3 opt-in live), Swift Testing, fixtures read from root `fixtures/` via
+  Platform.Windows). Tests: 114 Kit + 36 Mac (4 of them opt-in live checks), Swift Testing, fixtures read from root `fixtures/` via
   `#filePath`.
 - `macos/App`: SwiftUI app. `AppModel` (`@Observable`, `@MainActor`) owns services and state; downloads run in
   model-owned tasks so they survive navigation. Views in `App/Views`.

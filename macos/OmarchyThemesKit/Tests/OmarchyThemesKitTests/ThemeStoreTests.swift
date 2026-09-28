@@ -12,15 +12,21 @@ struct ThemeStoreTests {
         store = ThemeStore(paths: dir.paths, downloader: downloader, now: clock.function)
     }
 
+    static let tokyoPalette = Palette(
+        background: RgbColor("#1a1b26"), foreground: RgbColor("#a9b1d6"), accent: RgbColor("#7aa2f7"), source: .colorsToml)
+
     static func details(_ slug: String = "tokyo", wallpapers: [String] = [], palette: Bool = true) -> ThemeDetails {
         let repo = RepoRef(owner: "o", name: slug)
         return ThemeDetails(
             entry: CatalogEntry(slug: slug, name: "Tokyo", repoURL: URL(string: "https://github.com/o/\(slug)")!,
                                 screenshotURL: URL(string: "https://omarchy.org/assets/themes/\(slug).webp")),
             repo: repo,
-            palette: palette ? Palette(background: RgbColor("#1a1b26"), foreground: RgbColor("#a9b1d6"), accent: RgbColor("#7aa2f7"), source: .colorsToml) : nil,
+            palette: palette ? tokyoPalette : nil,
             paletteError: nil,
-            wallpapers: wallpapers.map { WallpaperRef(path: "backgrounds/\($0)", size: 100, downloadURL: GitHubClient.rawURL(repo, "backgrounds/\($0)")) },
+            wallpapers: wallpapers.map { name in
+                let path = "backgrounds/\(name)"
+                return WallpaperRef(path: path, size: 100, downloadURL: GitHubClient.rawURL(repo, path))
+            },
             mode: .dark)
     }
 
@@ -89,6 +95,8 @@ struct ThemeStoreTests {
 
         #expect(installed.wallpapers == ["new.png"])
         #expect(!FileManager.default.fileExists(atPath: installed.wallpaperURL("old.png").path))
+        #expect(store.get("tokyo")?.wallpapers == ["new.png"])
+        #expect(themesDirContents == ["tokyo"]) // no staging or backup folder left behind
     }
 
     @Test func duplicateWallpaperNamesAreMadeUnique() async throws {

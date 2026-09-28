@@ -129,8 +129,13 @@ public struct ThemeResolver: Sendable {
 
         // Some repos keep a single background at the root.
         return images
-            .filter { !$0.path.contains("/") && ($0.fileName.lowercased().hasPrefix("background") || $0.fileName.lowercased().hasPrefix("wallpaper")) }
+            .filter(isRootWallpaper)
             .sorted { NaturalSort.isOrderedBefore($0.path, $1.path) }
+    }
+
+    private static func isRootWallpaper(_ item: RepoTreeItem) -> Bool {
+        let name = item.fileName.lowercased()
+        return !item.path.contains("/") && (name.hasPrefix("background") || name.hasPrefix("wallpaper"))
     }
 }
 

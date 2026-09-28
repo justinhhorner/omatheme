@@ -32,15 +32,17 @@ public struct ITermExporter: TerminalExporter {
     }
 
     public func add(slug: String, themeName: String, colors: TerminalColors) throws {
-        try ExportFiles.write(try Self.profileJSON(slug: slug, name: schemeName(forTheme: themeName), colors: colors), to: fileURL(slug: slug))
+        let profile = try Self.profileJSON(slug: slug, name: schemeName(forTheme: themeName), colors: colors)
+        try FileManager.default.writeAtomically(profile, to: fileURL(slug: slug))
     }
 
     public func remove(slug: String, themeName: String) throws {
-        try ExportFiles.removeIfPresent(fileURL(slug: slug))
+        try FileManager.default.removeItemIfPresent(at: fileURL(slug: slug))
     }
 
     public func addedMessage(scheme: String) -> String {
-        "“\(scheme)” is now an iTerm2 profile. In iTerm2, open Settings › Profiles and pick it for a new window, or choose Other Actions › Set as Default to use it everywhere."
+        "“\(scheme)” is now an iTerm2 profile. In iTerm2, open Settings › Profiles and pick it for a new window, "
+            + "or choose Other Actions › Set as Default to use it everywhere."
     }
 
     public func removedMessage(scheme: String) -> String {
@@ -68,6 +70,9 @@ public struct ITermExporter: TerminalExporter {
 
     private static func component(_ color: RgbColor) -> [String: Any] {
         let c = color.unitComponents
-        return ["Red Component": c.red, "Green Component": c.green, "Blue Component": c.blue, "Alpha Component": 1, "Color Space": "sRGB"]
+        return [
+            "Red Component": c.red, "Green Component": c.green, "Blue Component": c.blue,
+            "Alpha Component": 1, "Color Space": "sRGB",
+        ]
     }
 }

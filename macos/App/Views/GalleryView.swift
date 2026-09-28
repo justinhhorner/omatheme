@@ -9,14 +9,18 @@ struct GalleryView: View {
 
     private var installedSlugs: Set<String> { Set(model.installed.map(\.slug)) }
 
-    private var isSearching: Bool { !searchText.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var query: String { searchText.trimmingCharacters(in: .whitespaces) }
+
+    private var isSearching: Bool { !query.isEmpty }
 
     private var visible: [CatalogEntry] {
-        let query = searchText.trimmingCharacters(in: .whitespaces)
+        let query = query
         let installed = installedSlugs
         return model.entries.filter { entry in
-            (query.isEmpty || entry.name.localizedCaseInsensitiveContains(query) || entry.repoDisplay.localizedCaseInsensitiveContains(query))
-                && (!downloadedOnly || installed.contains(entry.slug))
+            let matchesQuery = query.isEmpty
+                || entry.name.localizedCaseInsensitiveContains(query)
+                || entry.repoDisplay.localizedCaseInsensitiveContains(query)
+            return matchesQuery && (!downloadedOnly || installed.contains(entry.slug))
         }
     }
 
@@ -108,43 +112,54 @@ struct GalleryView: View {
     private var grid: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if let notice = model.catalogNotice {
-                    BannerView(banner: Banner(kind: .warning, title: "Showing a cached catalog", message: notice)) {
-                        model.catalogNotice = nil
-                    }
-                }
-                if let notice = model.defaultThemesNotice {
-                    BannerView(banner: Banner(kind: .warning, title: "Omarchy's themes are missing", message: notice)) {
-                        model.defaultThemesNotice = nil
-                    }
-                }
+                notices
                 if let theme = model.currentTheme, !isSearching {
                     currentThemeSection(theme)
                 }
-                let items = visible
-                let defaults = items.filter(\.isDefaultTheme)
-                let community = items.filter { !$0.isDefaultTheme }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 20)], alignment: .leading, spacing: 24) {
-                    if !defaults.isEmpty {
-                        Section {
-                            cards(defaults)
-                        } header: {
-                            GallerySectionHeader(title: "Included with Omarchy", count: defaults.count)
-                        }
-                    }
-                    if !community.isEmpty {
-                        Section {
-                            cards(community)
-                        } header: {
-                            GallerySectionHeader(title: "Community", detail: "From omarchy.org/themes", count: community.count)
-                                .padding(.top, defaults.isEmpty ? 0 : 12)
-                        }
-                    }
-                }
+                sections(visible)
             }
             .padding(20)
         }
         .accessibilityIdentifier("galleryGrid")
+    }
+
+    @ViewBuilder
+    private var notices: some View {
+        if let notice = model.catalogNotice {
+            BannerView(banner: Banner(kind: .warning, title: "Showing a cached catalog", message: notice)) {
+                model.catalogNotice = nil
+            }
+        }
+        if let notice = model.defaultThemesNotice {
+            BannerView(banner: Banner(kind: .warning, title: "Omarchy's themes are missing", message: notice)) {
+                model.defaultThemesNotice = nil
+            }
+        }
+    }
+
+    /// "Included with Omarchy", then "Community"; an empty section is hidden.
+    private func sections(_ items: [CatalogEntry]) -> some View {
+        let defaults = items.filter(\.isDefaultTheme)
+        let community = items.filter { !$0.isDefaultTheme }
+        let columns = [GridItem(.adaptive(minimum: 250, maximum: 380), spacing: 20)]
+
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 24) {
+            if !defaults.isEmpty {
+                Section {
+                    cards(defaults)
+                } header: {
+                    GallerySectionHeader(title: "Included with Omarchy", count: defaults.count)
+                }
+            }
+            if !community.isEmpty {
+                Section {
+                    cards(community)
+                } header: {
+                    GallerySectionHeader(title: "Community", detail: "From omarchy.org/themes", count: community.count)
+                        .padding(.top, defaults.isEmpty ? 0 : 12)
+                }
+            }
+        }
     }
 
     private func cards(_ entries: [CatalogEntry]) -> some View {
@@ -156,10 +171,7 @@ struct GalleryView: View {
             .buttonStyle(.plain)
             .contextMenu {
                 Link("Open on GitHub", destination: entry.repoURL)
-                Button("Copy Link") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(entry.repoURL.absoluteString, forType: .string)
-                }
+                Button("Copy Link") { Pasteboard.copy(entry.repoURL.absoluteString) }
             }
         }
     }
@@ -222,9 +234,9 @@ struct ThemeCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(isHovered ? 0.25 : 0.1)))
                 .overlay(alignment: .topTrailing) {
                     if isActive {
-                        StatusBadge(title: "Applied", symbol: "checkmark.circle.fill", tint: .green).padding(8)
+                        StatusBadge.applied.padding(8)
                     } else if isDownloaded {
-                        StatusBadge(title: "Downloaded", symbol: "arrow.down.circle.fill").padding(8)
+                        StatusBadge.downloaded.padding(8)
                     }
                 }
                 .shadow(color: .black.opacity(isHovered ? 0.22 : 0.08), radius: isHovered ? 10 : 4, y: isHovered ? 5 : 2)

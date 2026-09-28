@@ -43,23 +43,24 @@ public final class MacDesktopBackend: DesktopBackend {
         // Keep a private copy of each original wallpaper: the user may delete or move the file
         // later, and Restore should still work.
         let fm = FileManager.default
-        if fm.fileExists(atPath: snapshotAssetsDir.path) {
-            try fm.removeItem(at: snapshotAssetsDir)
-        }
+        try fm.removeItemIfPresent(at: snapshotAssetsDir)
         var copies: [URL: URL] = [:]
         for (index, screen) in screens.enumerated() {
             values[Self.urlPrefix + screen.screenID] = screen.imageURL?.path ?? ""
             values[Self.optionsPrefix + screen.screenID] = String(decoding: try encoder.encode(screen.options), as: UTF8.self)
 
             guard let url = screen.imageURL, Self.needsCopy(url) else { continue }
-            if copies[url] == nil {
+            let copy: URL
+            if let existing = copies[url] {
+                copy = existing
+            } else {
                 try fm.createDirectory(at: snapshotAssetsDir, withIntermediateDirectories: true)
                 let ext = url.pathExtension.isEmpty ? "" : ".\(url.pathExtension)"
-                let copy = snapshotAssetsDir.appending(path: "\(index)\(ext)")
+                copy = snapshotAssetsDir.appending(path: "\(index)\(ext)")
                 try fm.copyItem(at: url, to: copy)
                 copies[url] = copy
             }
-            values[Self.copyPrefix + screen.screenID] = copies[url]!.path
+            values[Self.copyPrefix + screen.screenID] = copy.path
         }
 
         return DesktopSnapshot(takenAt: now(), values: values)
@@ -67,9 +68,10 @@ public final class MacDesktopBackend: DesktopBackend {
 
     private static func needsCopy(_ url: URL) -> Bool {
         var isDirectory: ObjCBool = false
-        guard url.isFileURL, FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
-            return false
-        }
+        guard url.isFileURL,
+              FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue
+        else { return false }
         return !systemPictureFolders.contains { url.path.hasPrefix($0) }
     }
 
@@ -78,8 +80,13 @@ public final class MacDesktopBackend: DesktopBackend {
         guard let fallbackID = recorded.first else { return }
         let decoder = JSONFile.makeDecoder()
 
-        var failures: [any Error] = []
+        // Throwing keeps the snapshot (ThemeApplier only forgets it after a successful restore), so
+        // with no display connected right now the original desktop isn't lost.
         let current = await wallpapers.currentWallpapers()
+        guard !current.isEmpty else { throw NoScreensError() }
+
+        var attempted = 0
+        var failures: [any Error] = []
         for screen in current {
             // A display connected after the snapshot gets the main screen's original picture.
             let id = recorded.contains(screen.screenID) ? screen.screenID : fallbackID
@@ -93,26 +100,39 @@ public final class MacDesktopBackend: DesktopBackend {
             let options = snapshot.values[Self.optionsPrefix + id]
                 .flatMap { try? decoder.decode(WallpaperOptions.self, from: Data($0.utf8)) } ?? WallpaperOptions()
 
+            attempted += 1
             do {
                 try await wallpapers.setWallpaper(url, options: options, screenID: screen.screenID)
             } catch {
                 failures.append(error)
             }
         }
-        if let first = failures.first, failures.count == current.count {
+        // Fail only if nothing could be put back (displays without a saved picture are skipped).
+        if let first = failures.first, failures.count == attempted {
             throw first
         }
     }
 
+    /// Sets the wallpaper on every display, carrying on past a display that fails so the others
+    /// still change; the error then says how many did.
     public func setWallpaper(_ image: URL, fit: WallpaperFit, fillColor: RgbColor?) async throws {
         let usable = try converter.ensureSupportedFormat(image)
         try Task.checkCancellation()
         let options = WallpaperOptions(fit: fit, fillColor: fillColor)
         let screens = await wallpapers.currentWallpapers()
         guard !screens.isEmpty else { throw NoScreensError() }
+
+        var failures: [any Error] = []
         for screen in screens {
-            try await wallpapers.setWallpaper(usable, options: options, screenID: screen.screenID)
+            do {
+                try await wallpapers.setWallpaper(usable, options: options, screenID: screen.screenID)
+            } catch {
+                failures.append(error)
+            }
         }
+        guard let first = failures.first else { return }
+        if failures.count == screens.count { throw first }
+        throw PartialWallpaperError(changed: screens.count - failures.count, of: screens.count, underlying: first)
     }
 
     public func setAppearanceMode(_ mode: AppearanceMode) async throws {
@@ -126,6 +146,23 @@ public final class MacDesktopBackend: DesktopBackend {
 
 public struct NoScreensError: LocalizedError, Sendable {
     public var errorDescription: String? { "No displays were found." }
+}
+
+/// Some displays got the new wallpaper and some didn't.
+public struct PartialWallpaperError: LocalizedError, Sendable {
+    public let changed: Int
+    public let total: Int
+    public let underlying: any Error
+
+    public init(changed: Int, of total: Int, underlying: any Error) {
+        self.changed = changed
+        self.total = total
+        self.underlying = underlying
+    }
+
+    public var errorDescription: String? {
+        "It was set on \(changed) of \(total) displays. \(underlying.localizedDescription)"
+    }
 }
 
 public struct UnsupportedOnMacError: LocalizedError, Sendable {

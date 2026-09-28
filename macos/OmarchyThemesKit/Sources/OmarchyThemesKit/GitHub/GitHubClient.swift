@@ -96,7 +96,12 @@ public struct GitHubClient: Sendable {
     }
 
     private static func treeURL(_ repo: RepoRef) -> URL {
-        URL(string: "https://api.github.com/repos/\(escape(repo.owner))/\(escape(repo.name))/git/trees/\(escape(repo.effectiveRef))?recursive=1")!
+        URL(string: "https://api.github.com/repos/\(repoPath(repo))/git/trees/\(escape(repo.effectiveRef))?recursive=1")!
+    }
+
+    /// "owner/name", each part escaped.
+    private static func repoPath(_ repo: RepoRef) -> String {
+        "\(escape(repo.owner))/\(escape(repo.name))"
     }
 
     private static func parseTree(_ response: CachedResponse, repo: RepoRef) throws -> RepoTree {
@@ -106,10 +111,10 @@ public struct GitHubClient: Sendable {
 
         let prefix = repo.subPath.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         let items = entries.compactMap { entry -> RepoTreeItem? in
-            guard let path = entry.path else { return nil }
+            guard var path = entry.path else { return nil }
             if let prefix {
                 guard path.hasPrefix(prefix) else { return nil }
-                return RepoTreeItem(path: String(path.dropFirst(prefix.count)), isFile: entry.type == "blob", size: entry.size)
+                path = String(path.dropFirst(prefix.count))
             }
             return RepoTreeItem(path: path, isFile: entry.type == "blob", size: entry.size)
         }
@@ -122,13 +127,14 @@ public struct GitHubClient: Sendable {
         let path = repo.repoPath(themeRelativePath).split(separator: "/", omittingEmptySubsequences: false)
             .map { escape(String($0)) }
             .joined(separator: "/")
-        return URL(string: "https://raw.githubusercontent.com/\(escape(repo.owner))/\(escape(repo.name))/\(escape(repo.effectiveRef))/\(path)")!
+        return URL(string: "https://raw.githubusercontent.com/\(repoPath(repo))/\(escape(repo.effectiveRef))/\(path)")!
     }
 
     public func rawText(_ repo: RepoRef, _ themeRelativePath: String) async throws -> String {
+        let notFound = GitHubError.fileNotFound(path: themeRelativePath, repo: repo.fullName)
         let response = try await cache.get(Self.rawURL(repo, themeRelativePath), options: CacheOptions(
             maxAge: Self.freshFor,
-            mapError: { $0.statusCode == 404 ? GitHubError.fileNotFound(path: themeRelativePath, repo: repo.fullName) : nil }))
+            mapError: { $0.statusCode == 404 ? notFound : nil }))
         return response.text
     }
 

@@ -55,6 +55,11 @@ extension TerminalExporter {
     }
 
     public func removeInstructions(scheme: String) -> String { "" }
+
+    /// The scheme name made usable as a file name (theme names can contain "/").
+    func schemeFileName(forTheme themeName: String) -> String {
+        schemeName(forTheme: themeName).replacing("/", with: "-")
+    }
 }
 
 public struct TerminalExportUnsupportedError: LocalizedError, Sendable {
@@ -91,9 +96,13 @@ public struct TerminalEnvironment: Sendable {
     }
 
     /// The real Mac. `exportsDirectory` is inside the app's data folder.
-    public static func live(exportsDirectory: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> TerminalEnvironment {
+    public static func live(
+        exportsDirectory: URL,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> TerminalEnvironment {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let config = environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(filePath: $0, directoryHint: .isDirectory) }
+        let config = environment["XDG_CONFIG_HOME"]
+            .flatMap { $0.isEmpty ? nil : URL(filePath: $0, directoryHint: .isDirectory) }
             ?? home.appending(path: ".config", directoryHint: .isDirectory)
         return TerminalEnvironment(
             homeDirectory: home,
@@ -119,28 +128,5 @@ public enum TerminalExporters {
             GhosttyExporter(environment: environment),
             TerminalAppExporter(environment: environment),
         ]
-    }
-}
-
-// MARK: - Helpers shared by exporters
-
-extension RgbColor {
-    /// Components in 0...1.
-    var unitComponents: (red: Double, green: Double, blue: Double) {
-        (Double(r) / 255, Double(g) / 255, Double(b) / 255)
-    }
-}
-
-enum ExportFiles {
-    /// Writes `data` atomically, creating the folder if needed.
-    static func write(_ data: Data, to url: URL) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: url, options: .atomic)
-    }
-
-    static func removeIfPresent(_ url: URL) throws {
-        if FileManager.default.fileExists(atPath: url.path) {
-            try FileManager.default.removeItem(at: url)
-        }
     }
 }

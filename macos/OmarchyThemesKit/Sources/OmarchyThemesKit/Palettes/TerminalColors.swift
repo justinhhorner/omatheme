@@ -15,6 +15,12 @@ public struct TerminalColors: Hashable, Sendable {
 
     public static let ansiNames = ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"]
 
+    /// The palette swatch name for ANSI color `index` (0-15): "Red", …, "Bright red". The parsers
+    /// name swatches this way and `init(_:)` looks them up by it.
+    static func swatchName(ansi index: Int) -> String {
+        index < 8 ? ansiNames[index] : "Bright " + ansiNames[index - 8].lowercased()
+    }
+
     public init(background: RgbColor, foreground: RgbColor, cursor: RgbColor, selectionBackground: RgbColor, ansi: [RgbColor]) {
         self.background = background
         self.foreground = foreground

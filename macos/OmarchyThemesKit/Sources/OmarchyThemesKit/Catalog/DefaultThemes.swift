@@ -37,6 +37,6 @@ public enum DefaultThemes {
 
     /// Omarchy's own naming (omarchy-theme-list): "retro-82" → "Retro 82".
     public static func displayName(_ folder: String) -> String {
-        folder.split(separator: "-").map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+        folder.split(separator: "-").map(\.uppercasingFirst).joined(separator: " ")
     }
 }

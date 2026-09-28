@@ -23,6 +23,10 @@ final class FakeWallpaperAPI: WallpaperAPI, @unchecked Sendable {
         lock.withLock { screens.append(screen) }
     }
 
+    func disconnectAll() {
+        lock.withLock { screens.removeAll() }
+    }
+
     func currentWallpapers() async -> [ScreenWallpaper] {
         lock.withLock { screens }
     }
@@ -81,7 +85,9 @@ struct MacDesktopBackendTests {
         original = temp.file("Pictures/beach.jpg")
         api = FakeWallpaperAPI([
             ScreenWallpaper(screenID: "1", imageURL: original, options: WallpaperOptions(scaling: 3, allowClipping: true)),
-            ScreenWallpaper(screenID: "2", imageURL: original, options: WallpaperOptions(scaling: 1, allowClipping: false, fillColor: RgbColor(hex: "#102030"))),
+            ScreenWallpaper(
+                screenID: "2", imageURL: original,
+                options: WallpaperOptions(scaling: 1, allowClipping: false, fillColor: RgbColor(hex: "#102030"))),
         ])
         backend = MacDesktopBackend(wallpapers: api, snapshotAssetsDir: temp.url.appending(path: "original-desktop"))
     }
@@ -93,8 +99,9 @@ struct MacDesktopBackendTests {
 
     @Test func fitsMapToNSWorkspaceOptions() {
         let fill = RgbColor(hex: "#000000")
-        #expect(WallpaperOptions(fit: .fill, fillColor: fill) == WallpaperOptions(scaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue, allowClipping: true, fillColor: fill))
-        #expect(WallpaperOptions(fit: .fit, fillColor: nil) == WallpaperOptions(scaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue, allowClipping: false))
+        let proportional = NSImageScaling.scaleProportionallyUpOrDown.rawValue
+        #expect(WallpaperOptions(fit: .fill, fillColor: fill) == WallpaperOptions(scaling: proportional, allowClipping: true, fillColor: fill))
+        #expect(WallpaperOptions(fit: .fit, fillColor: nil) == WallpaperOptions(scaling: proportional, allowClipping: false))
         #expect(WallpaperOptions(fit: .stretch, fillColor: nil).scaling == NSImageScaling.scaleAxesIndependently.rawValue)
         #expect(WallpaperOptions(fit: .center, fillColor: nil).scaling == NSImageScaling.scaleNone.rawValue)
         #expect(WallpaperOptions(fit: .tile, fillColor: nil) == WallpaperOptions(fit: .fill, fillColor: nil))
@@ -176,6 +183,48 @@ struct MacDesktopBackendTests {
         await #expect(throws: NoSuchScreenError.self) { try await backend.restore(snapshot) }
     }
 
+    @Test func restoreWithNoDisplayKeepsTheOriginalDesktop() async throws {
+        let applier = ThemeApplier(backend: backend, snapshots: FileSnapshotStore(paths: AppPaths(root: temp.url)))
+        let themed = temp.file("themes/tokyo/wallpapers/1.png")
+        _ = try await applier.apply(ApplyRequest(themeName: "Tokyo", wallpaper: themed, mode: .dark, accent: nil, options: ApplyOptions()))
+        api.disconnectAll()
+
+        await #expect(throws: NoScreensError.self) { try await applier.restoreOriginal() }
+
+        #expect(applier.hasOriginalSnapshot)
+    }
+
+    @Test func restoreFailsWhenEveryDisplayItTriedFails() async throws {
+        // Screen 2 has no saved picture, so only screen 1 is attempted; it failing is a failure.
+        let snapshot = DesktopSnapshot(takenAt: Date(), values: [
+            "screens": "1,2",
+            "screen.url.1": original.path,
+            "screen.url.2": "",
+        ])
+        api.failingScreens = ["1"]
+
+        await #expect(throws: NoSuchScreenError.self) { try await backend.restore(snapshot) }
+    }
+
+    @Test func aDisplayThatFailsDoesNotStopTheOthersAndTheErrorSaysHowMany() async throws {
+        let image = temp.file("themes/tokyo/wallpapers/1.png")
+        api.failingScreens = ["1"]
+
+        let error = await #expect(throws: PartialWallpaperError.self) {
+            try await backend.setWallpaper(image, fit: .fill, fillColor: nil)
+        }
+
+        #expect(api.setCalls.map(\.screenID) == ["2"])
+        #expect(error?.localizedDescription.hasPrefix("It was set on 1 of 2 displays.") == true)
+    }
+
+    @Test func everyDisplayFailingIsAPlainFailure() async throws {
+        let image = temp.file("themes/tokyo/wallpapers/1.png")
+        api.failingScreens = ["1", "2"]
+
+        await #expect(throws: NoSuchScreenError.self) { try await backend.setWallpaper(image, fit: .fill, fillColor: nil) }
+    }
+
     @Test func setWallpaperAppliesToEveryScreenWithTheFitAndFillColor() async throws {
         let image = temp.file("themes/tokyo/wallpapers/1.png")
 
@@ -208,7 +257,9 @@ struct MacDesktopBackendTests {
         let themed = temp.file("themes/tokyo/wallpapers/1.png")
         let applier = ThemeApplier(backend: backend, snapshots: FileSnapshotStore(paths: AppPaths(root: temp.url)))
 
-        let result = try await applier.apply(ApplyRequest(themeName: "Tokyo", wallpaper: themed, mode: .dark, accent: RgbColor(hex: "#7aa2f7"), options: ApplyOptions()))
+        let request = ApplyRequest(
+            themeName: "Tokyo", wallpaper: themed, mode: .dark, accent: RgbColor(hex: "#7aa2f7"), options: ApplyOptions())
+        let result = try await applier.apply(request)
 
         #expect(result.result(for: .saveOriginal)?.outcome == .applied)
         #expect(result.result(for: .wallpaper)?.outcome == .applied)
