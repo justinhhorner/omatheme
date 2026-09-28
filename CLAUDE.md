@@ -22,12 +22,23 @@ downloads that survive navigation, the theme fill color around Fit/Center, dry-r
 opt-in live checks). When one app gains a feature, list it for the other in a `docs/<from>-to-<to>.md` with file
 pointers (as `docs/macos-to-windows.md` did; it was deleted once empty), and say so here.
 
-**Pending for macOS (read this first on a Mac):** `docs/windows-to-macos.md`: (1) remove the file name shown under
-each wallpaper thumbnail on the theme page; (2) the "Current theme" section above the gallery with one-click
-wallpaper switching, plus the `lastAppliedWallpaper` fix that goes with it; (3) sending a theme's terminal
-colors to a macOS terminal (Windows adds them to Windows Terminal). Windows already did all three.
+As of Sep 27, 2026 (later) the macOS app also caught up with Windows: no wallpaper captions, the "Current theme"
+section with the `lastAppliedWallpaper` fix, terminal colors (see below) and a macOS README screenshot.
+`docs/windows-to-macos.md` was deleted once empty. Nothing is pending on either platform.
 
 ## Decisions already made (don't reopen)
+
+- **One data format for every client.** `docs/data-format.md` is the contract for the files in the data
+  folder (`settings.json`, `theme.json`, `original-desktop.json`, cache metadata): camelCase keys, absent
+  values omitted (never `null`), UTC dates with milliseconds and `Z`, no derived values. `fixtures/data/`
+  has a sample of each plus `legacy/` copies of what each app wrote before; both apps' `DataFormatTests`
+  check they write exactly the samples and read every version. Change the format only by changing the
+  document, the fixtures and both apps together.
+
+- **Terminal colors on macOS** (the user's choice): support **iTerm2, Ghostty and Terminal.app** behind a
+  `TerminalExporter` protocol, with **iTerm2 the default** in the UI, designed so more terminals are one new
+  type + one registry line (`TerminalExporters.all(in:)`). Exporters only add their own files and never edit
+  a terminal's settings; that's why Terminal.app removal is manual. Windows targets Windows Terminal only.
 
 - **Separate native apps per platform, no cross-platform UI.** A Tauri plan was rejected in favour of WinUI 3 on
   Windows and **SwiftUI on macOS**. Each app follows its OS's conventions; don't reskin one look for both.
@@ -151,7 +162,7 @@ What was built, per the confirmed plan. See README "Building on macOS" and `docs
 
 - `macos/OmarchyThemesKit` (Swift package, `swift test`): target `OmarchyThemesKit` (no AppKit) ports Core;
   target `OmarchyThemesMac` holds `MacDesktopBackend` behind a fake-able `WallpaperAPI` (mirrors
-  Platform.Windows). Tests: 95 Kit + 18 backend, Swift Testing, fixtures read from root `fixtures/` via
+  Platform.Windows). Tests: 111 Kit + 29 backend (+3 opt-in live), Swift Testing, fixtures read from root `fixtures/` via
   `#filePath`.
 - `macos/App`: SwiftUI app. `AppModel` (`@Observable`, `@MainActor`) owns services and state; downloads run in
   model-owned tasks so they survive navigation. Views in `App/Views`.
@@ -180,6 +191,16 @@ Gotchas found:
 
 - `URLSessionTask.progress.completedUnitCount` is **not bytes** (it ended at 100); observe
   `countOfBytesReceived` instead. Found by the live checks.
+- Shared color math must round like .NET: `Math.Round` rounds halves to even, Swift's `.rounded()` rounds them
+  away from zero. `TerminalColors` uses `.rounded(.toNearestOrEven)` so both apps export identical colors.
+- New Swift files in `macos/App` need `xcodegen` again before `xcodebuild` sees them ("cannot find … in scope").
+- **No `.fixedSize()` on controls inside a grouped `Form`.** A fixed-size Picker widened its row past the Apply
+  sheet, so the whole form was cropped on both sides (headers cut, switches and the menu hidden). To check a
+  sheet without Accessibility access, copy its layout into a small AppKit harness, size a window to
+  `NSHostingView.fittingSize` (what a sheet does) and `screencapture -l` it.
+- The current-theme card only shows for a downloaded, applied theme. To see it without applying anything,
+  stage a theme folder and `lastAppliedSlug` in an `OMARCHY_THEMES_DATA_DIR` (that's how the README screenshot
+  was taken, with the normal app and nothing clicked).
 - Live, read-only checks: `OMATHEME_LIVE=1 swift test --filter LiveChecks` (146 themes, Aetheria, Vulkanite,
   one real download, reading the current wallpaper). Mind the GitHub rate limit.
 - App test switches: `OMARCHY_THEMES_DRY_RUN=1` (backend that changes nothing, shows a badge) and
@@ -204,7 +225,7 @@ Gotchas found:
 ```bash
 cd windows
 dotnet build OmarchyThemes.sln
-dotnet test          # Core (143) + Windows backend (31) tests; 5 live checks skipped
+dotnet test          # Core (158) + Windows backend (31) tests; live checks skipped
 dotnet run --project src/OmarchyThemes.App
 ```
 

@@ -22,9 +22,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/windows-gallery.png" width="900"
-       alt="The Windows app's gallery: the current theme with its wallpapers, above the themes included with Omarchy">
-  <br>
+  <img src="docs/screenshots/macos-gallery.png" width="900"
+       alt="The macOS app's gallery: the current theme with its wallpapers, above the themes included with Omarchy">
 </p>
 
 A native desktop companion for [Omarchy Themes](https://omarchy.org/themes/).

@@ -44,7 +44,7 @@ Both apps read the same environment variables:
 
 | Variable | Effect |
 |---|---|
-| `OMARCHY_THEMES_DRY_RUN=1` | Swaps in a backend that reports the platform's capabilities but changes nothing, so Apply and Restore can be exercised end to end without touching the desktop. The window shows a "Dry run" badge (on Windows, in the title bar). On Windows, Windows Terminal schemes also go to the data folder instead of Terminal's. |
+| `OMARCHY_THEMES_DRY_RUN=1` | Swaps in a backend that reports the platform's capabilities but changes nothing, so Apply and Restore can be exercised end to end without touching the desktop. The window shows a "Dry run" badge (on Windows, in the title bar). Terminal color exports stay in the data folder too: on Windows, Windows Terminal schemes; on macOS, iTerm2 and Ghostty files go to `dry-run-home/` there, and Terminal.app isn't opened. |
 | `OMARCHY_THEMES_DATA_DIR=<path>` | Uses another data folder instead of `%LOCALAPPDATA%\OmarchyThemes` / `~/Library/Application Support/OmarchyThemes` (fresh first launch, no risk to real downloads or the saved original desktop). |
 
 Use both whenever the UI is driven by a script, for example on Windows:
@@ -97,9 +97,40 @@ in the Help menu.
 - **App** holds an `@Observable` `AppModel` (services, catalog state, downloads that carry on
   when you navigate away) and the views.
 
-Local data lives in `~/Library/Application Support/OmarchyThemes`, with the same layout as on
-Windows (`cache/`, `themes/<slug>/`, `settings.json`, `original-desktop.json`,
-`original-desktop/`). Screenshot and wallpaper thumbnails are cached in `cache/images/`.
+The UI matches Windows feature for feature, in macOS form. The gallery opens with a **Current Theme**
+card when the theme on the desktop is still downloaded (hidden while searching, shown even if the
+catalog can't load, gone after Restore). It shows the theme's screenshot, light/dark, colors,
+**View Theme** and a row of its wallpapers with the one on the desktop ringed and check-marked;
+clicking another sets it straight away (wallpaper only, with the saved fit and the theme's fill
+color). The current wallpaper is only recorded when the wallpaper step actually applied
+(`AppSettings.afterApply`). Theme pages show wallpaper thumbnails without captions (the name is the
+tooltip, the VoiceOver label and in the large preview).
+
+### Terminal colors on macOS
+
+A theme page's **Terminal Colors** section sends the theme's colors to a terminal app, picked from a
+menu (iTerm2 until you pick another; the choice is saved as `terminalApp` in settings). The colors
+come from `TerminalColors` in the Kit, the same mapping as Windows (Omarchy's own terminal template).
+The scheme is always named "<Theme> (Omarchy)", as in Windows Terminal. Themes downloaded before
+`muted`/`bright_foreground` were read are looked up again (usually from cache) for those colors.
+
+Each terminal is a `TerminalExporter` (in `OmarchyThemesMac/Terminals/`). An exporter only adds its
+own files and never edits the terminal's settings:
+
+| Terminal | What Add does | Remove |
+|---|---|---|
+| iTerm2 (default) | Writes a Dynamic Profile, `~/Library/Application Support/iTerm2/DynamicProfiles/omarchy-themes-<slug>.json`, with a stable GUID. iTerm2 picks it up live. | Deletes the file. |
+| Ghostty | Writes a theme file, `$XDG_CONFIG_HOME/ghostty/themes/<Theme> (Omarchy)` (`~/.config` by default). The user sets `theme = "…"` and reloads the config. Counts as installed if the app or a Ghostty config folder exists. | Deletes the file. |
+| Terminal.app | Writes a `.terminal` profile (keyed-archived `NSColor`s) to `terminal/` in the data folder and opens it with Terminal, which imports it and opens a window. Whether it's there is read from Terminal's preferences (read-only). | Manual: the button explains how (Terminal › Settings › Profiles, −), since removing it would mean editing Terminal's settings. |
+
+To add a terminal, write a type conforming to `TerminalExporter` (`ITermExporter` is the smallest
+example) and add it to `TerminalExporters.all(in:)`. Everything outside the app (home and config
+folders, finding and opening apps, reading another app's preferences) goes through
+`TerminalEnvironment`, so exporters are tested against temp folders and fakes.
+
+Local data lives in `~/Library/Application Support/OmarchyThemes`, with the same layout **and file
+format** as on Windows (see [data-format.md](data-format.md)). Screenshot and wallpaper thumbnails are
+also cached in `cache/images/` (macOS only).
 
 ### Applying a theme on macOS
 
@@ -149,6 +180,8 @@ original-desktop.json   snapshot taken before the first Apply
 original-desktop/       private copies of the original wallpapers, used by Restore
 logs/                   daily log files, kept for a week
 ```
+
+The files are in the format both apps share, documented in [data-format.md](data-format.md).
 
 ### The UI
 
@@ -307,8 +340,10 @@ They use the same `fixtures/` as the Windows tests, touch no OS state and make n
 
 **Kit (`OmarchyThemesKitTests`)** mirrors the Core suite above (catalog parser, repo links,
 palettes, HTTP cache and GitHub client, theme resolution, store and settings, `ThemeApplier`,
-apply summaries). It also covers the strict TOML reader (inline tables, quoted and dotted keys,
-escapes, multi-line strings, arrays) and checks that concurrent applies never interleave.
+apply summaries), including the terminal color mapping (`TerminalColorsTests`) and recording the
+current wallpaper only when the wallpaper step applied (`AfterApplyTests`), each with the same cases as
+on Windows. It also covers the strict TOML reader (inline tables, quoted and dotted keys, escapes,
+multi-line strings, arrays) and checks that concurrent applies never interleave.
 
 **macOS backend (`OmarchyThemesMacTests`)**, against an in-memory `WallpaperAPI`:
 
@@ -318,6 +353,7 @@ escapes, multi-line strings, arrays) and checks that concurrent applies never in
 | Snapshot/restore | per-screen picture and options, one private copy per file, system pictures not copied, falling back to the copy when the original is gone, a display connected later, failure only when every screen fails |
 | Capabilities | wallpaper only; through `ThemeApplier`, light/dark and accent report "not supported" |
 | ImageIO conversion | real ImageIO on temp files: WebP decoding, BMP → PNG, reuse, actionable error for unreadable images |
+| Terminal exporters | against a fake Mac (temp home, chosen installed apps, recorded "open" calls): registry order and default (iTerm2), shared scheme name, iTerm2 Dynamic Profile JSON (every color as sRGB components, stable GUID, add/remove), Ghostty theme file (all keys and 16 palette entries, config folder counts as installed), Terminal.app `.terminal` plist (keyed-archived NSColors, opened with Terminal, profile detection read-only, removal manual) |
 
 `OMATHEME_LIVE=1 swift test --filter LiveChecks` runs opt-in, read-only checks against the
 live site, a few theme repos and this Mac's current desktop. During development they parsed all 146
