@@ -25,6 +25,7 @@ public sealed record InstalledTheme
 
     public string WallpaperPath(string fileName) => Path.Combine(Directory, ThemeStore.WallpapersFolder, fileName);
 
+    [JsonIgnore]
     public string? ScreenshotPath => ScreenshotFile is null ? null : Path.Combine(Directory, ScreenshotFile);
 }
 

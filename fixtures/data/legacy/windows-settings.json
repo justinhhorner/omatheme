@@ -1,0 +1,11 @@
+{
+  "welcomeSeen": true,
+  "applyDefaults": {
+    "wallpaper": true,
+    "appearanceMode": false,
+    "accentColor": true,
+    "fit": "center"
+  },
+  "lastAppliedSlug": "omarchy.tokyo-night",
+  "lastAppliedWallpaper": null
+}

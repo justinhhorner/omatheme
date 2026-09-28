@@ -1,15 +1,21 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace OmarchyThemes.Core.Storage;
 
-/// <summary>Shared JSON settings and crash-safe read/write helpers for the app's local files.</summary>
+/// <summary>
+/// Shared JSON settings and crash-safe read/write helpers for the app's local files. The format is
+/// the contract in docs/data-format.md, shared with the macOS app: camelCase keys, absent values
+/// omitted, UTC dates with milliseconds and "Z".
+/// </summary>
 public static class JsonFile
 {
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase), new UtcDateJsonConverter() },
     };
 
     /// <summary>Reads <paramref name="path"/>, returning null if it is missing or unreadable.</summary>
@@ -46,4 +52,20 @@ public static class JsonFile
         File.WriteAllBytes(temp, bytes);
         File.Move(temp, path, overwrite: true);
     }
+}
+
+/// <summary>
+/// Dates as ISO 8601 UTC with milliseconds and "Z" ("2026-09-27T09:00:00.123Z"), per
+/// docs/data-format.md. Reads any ISO 8601 form; one without a zone is UTC (older macOS files).
+/// </summary>
+public sealed class UtcDateJsonConverter : JsonConverter<DateTimeOffset>
+{
+    public override DateTimeOffset Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        DateTimeOffset.TryParse(reader.GetString(), CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var date)
+            ? date
+            : throw new JsonException($"Invalid date '{reader.GetString()}'.");
+
+    public override void Write(Utf8JsonWriter writer, DateTimeOffset value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture));
 }

@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using OmarchyThemes.Core.Storage;
 
 namespace OmarchyThemes.Core.Net;
@@ -93,7 +95,7 @@ public sealed class HttpCache
             return null;
         try
         {
-            return new CachedResponse(File.ReadAllBytes(bodyPath), meta.FetchedAt, FromCache: true, IsStale: false, meta.ETag, meta.LastModified);
+            return new CachedResponse(File.ReadAllBytes(bodyPath), meta.FetchedAt, FromCache: true, IsStale: false, meta.ETag, ParseHttpDate(meta.LastModified));
         }
         catch (IOException)
         {
@@ -111,7 +113,8 @@ public sealed class HttpCache
     private void WriteMeta(Uri uri, CachedResponse response)
     {
         var (_, metaPath) = PathsFor(uri);
-        JsonFile.WriteAtomic(metaPath, new CacheMeta(uri.AbsoluteUri, response.FetchedAt, response.ETag, response.LastModified));
+        JsonFile.WriteAtomic(metaPath, new CacheMeta(
+            uri.AbsoluteUri, response.FetchedAt, response.ETag, response.LastModified?.ToString("R", CultureInfo.InvariantCulture)));
     }
 
     private (string Body, string Meta) PathsFor(Uri uri)
@@ -121,7 +124,18 @@ public sealed class HttpCache
         return (baseName + ".body", baseName + ".json");
     }
 
-    private sealed record CacheMeta(string Url, DateTimeOffset FetchedAt, string? ETag, DateTimeOffset? LastModified);
+    /// <summary>
+    /// Cache metadata as in docs/data-format.md: the ETag and Last-Modified headers verbatim. Older files
+    /// (key "eTag", an ISO date) still read: key matching is case-insensitive and both date forms parse.
+    /// </summary>
+    private sealed record CacheMeta(
+        string Url,
+        DateTimeOffset FetchedAt,
+        [property: JsonPropertyName("etag")] string? ETag,
+        string? LastModified);
+
+    private static DateTimeOffset? ParseHttpDate(string? text) =>
+        DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date) ? date : null;
 }
 
 public sealed record CacheOptions

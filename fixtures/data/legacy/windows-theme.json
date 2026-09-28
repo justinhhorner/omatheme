@@ -1,0 +1,35 @@
+{
+  "slug": "omarchy.tokyo-night",
+  "name": "Tokyo Night",
+  "repoUrl": "https://github.com/omacom/omarchy/tree/HEAD/themes/tokyo-night",
+  "palette": {
+    "background": "#1a1b26",
+    "foreground": "#a9b1d6",
+    "accent": "#7aa2f7",
+    "cursor": null,
+    "selection": "#292e42",
+    "muted": "#414868",
+    "brightForeground": "#c0caf5",
+    "declaredMode": "dark",
+    "swatches": [
+      {
+        "name": "Red",
+        "color": "#f7768e"
+      },
+      {
+        "name": "Bright red",
+        "color": "#ff7a93"
+      }
+    ],
+    "source": "colorsToml",
+    "mode": "dark"
+  },
+  "mode": "dark",
+  "wallpapers": [
+    "0-winding-road.webp",
+    "1-quattro.webp"
+  ],
+  "screenshotFile": "screenshot.png",
+  "downloadedAt": "2026-09-27T09:00:00.1230000+00:00",
+  "screenshotPath": "C:\\Users\\me\\AppData\\Local\\OmarchyThemes\\themes\\omarchy.tokyo-night\\screenshot.png"
+}

@@ -17,6 +17,13 @@ public sealed record AppSettings
     public string? LastAppliedWallpaper { get; init; }
 
     /// <summary>
+    /// The terminal app theme pages send colors to (macOS: "iterm2", "ghostty", "terminal"); null means
+    /// the platform default. The Windows app only has Windows Terminal, so it never sets this, but it
+    /// keeps the value so the file stays the same shared format (docs/data-format.md).
+    /// </summary>
+    public string? TerminalApp { get; init; }
+
+    /// <summary>
     /// The settings after applying <paramref name="slug"/>. The theme becomes current if any step
     /// applied; its wallpaper only if the wallpaper step itself applied (with the wallpaper unchecked,
     /// or failing, the desktop keeps showing whatever it showed before).
