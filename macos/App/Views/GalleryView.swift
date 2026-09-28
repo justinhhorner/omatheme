@@ -9,6 +9,8 @@ struct GalleryView: View {
 
     private var installedSlugs: Set<String> { Set(model.installed.map(\.slug)) }
 
+    private var isSearching: Bool { !searchText.trimmingCharacters(in: .whitespaces).isEmpty }
+
     private var visible: [CatalogEntry] {
         let query = searchText.trimmingCharacters(in: .whitespaces)
         let installed = installedSlugs
@@ -48,21 +50,24 @@ struct GalleryView: View {
     @ViewBuilder
     private var content: some View {
         if model.entries.isEmpty {
-            if let error = model.catalogError {
-                ContentUnavailableView {
-                    Label("Couldn't Load Themes", systemImage: "wifi.exclamationmark")
-                } description: {
-                    Text(error)
-                } actions: {
-                    Button("Try Again") { Task { await model.refreshCatalog() } }
-                        .disabled(model.isRefreshing)
+            // The current theme is local, so it shows even when the catalog can't load.
+            withCurrentTheme {
+                if let error = model.catalogError {
+                    ContentUnavailableView {
+                        Label("Couldn't Load Themes", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text(error)
+                    } actions: {
+                        Button("Try Again") { Task { await model.refreshCatalog() } }
+                            .disabled(model.isRefreshing)
+                    }
+                } else {
+                    ProgressView("Loading themes from omarchy.org…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-            } else {
-                ProgressView("Loading themes from omarchy.org…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else if visible.isEmpty {
-            if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            if isSearching {
                 ContentUnavailableView.search(text: searchText)
             } else {
                 ContentUnavailableView {
@@ -78,6 +83,28 @@ struct GalleryView: View {
         }
     }
 
+    @ViewBuilder
+    private func withCurrentTheme(@ViewBuilder _ content: () -> some View) -> some View {
+        if let theme = model.currentTheme, !isSearching {
+            VStack(spacing: 0) {
+                currentThemeSection(theme).padding(20)
+                content()
+            }
+        } else {
+            content()
+        }
+    }
+
+    private func currentThemeSection(_ theme: InstalledTheme) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Current Theme")
+                .font(.title2.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
+            CurrentThemeCard(theme: theme)
+        }
+        .padding(.bottom, 8)
+    }
+
     private var grid: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -91,6 +118,9 @@ struct GalleryView: View {
                         model.defaultThemesNotice = nil
                     }
                 }
+                if let theme = model.currentTheme, !isSearching {
+                    currentThemeSection(theme)
+                }
                 let items = visible
                 let defaults = items.filter(\.isDefaultTheme)
                 let community = items.filter { !$0.isDefaultTheme }
@@ -99,7 +129,7 @@ struct GalleryView: View {
                         Section {
                             cards(defaults)
                         } header: {
-                            GallerySectionHeader(title: "Included with Omarchy", detail: "The themes Omarchy ships with", count: defaults.count)
+                            GallerySectionHeader(title: "Included with Omarchy", count: defaults.count)
                         }
                     }
                     if !community.isEmpty {
@@ -137,7 +167,7 @@ struct GalleryView: View {
 
 struct GallerySectionHeader: View {
     let title: String
-    let detail: String
+    var detail: String? = nil
     let count: Int
 
     var body: some View {
@@ -147,9 +177,11 @@ struct GallerySectionHeader: View {
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(detail)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            if let detail {
+                Text(detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)

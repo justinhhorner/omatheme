@@ -29,6 +29,12 @@ public struct Palette: Hashable, Sendable, Codable {
     public var cursor: RgbColor?
     public var selection: RgbColor?
 
+    /// Named colors.toml `muted` (Omarchy uses it as the terminal's bright black).
+    public var muted: RgbColor?
+
+    /// Named colors.toml `bright_foreground` (the terminal's bright white and cursor).
+    public var brightForeground: RgbColor?
+
     /// Mode stated by the theme itself (colors.toml `mode` or a light.mode file).
     public var declaredMode: AppearanceMode?
 
@@ -39,13 +45,15 @@ public struct Palette: Hashable, Sendable, Codable {
 
     public init(
         background: RgbColor, foreground: RgbColor, accent: RgbColor, cursor: RgbColor? = nil, selection: RgbColor? = nil,
-        declaredMode: AppearanceMode? = nil, swatches: [NamedColor] = [], source: PaletteSource
+        muted: RgbColor? = nil, brightForeground: RgbColor? = nil, declaredMode: AppearanceMode? = nil, swatches: [NamedColor] = [], source: PaletteSource
     ) {
         self.background = background
         self.foreground = foreground
         self.accent = accent
         self.cursor = cursor
         self.selection = selection
+        self.muted = muted
+        self.brightForeground = brightForeground
         self.declaredMode = declaredMode
         self.swatches = swatches
         self.source = source

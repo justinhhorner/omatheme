@@ -359,11 +359,6 @@
                             <Border Style="{StaticResource BadgeStyle}">
                                 <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind ViewModel.DefaultThemes.Count, Mode=OneWay}" />
                             </Border>
-                            <TextBlock
-                                Margin="4,0,0,0"
-                                VerticalAlignment="Center"
-                                Style="{StaticResource SecondaryTextStyle}"
-                                Text="The themes Omarchy ships with" />
                         </StackPanel>
                         <ItemsRepeater
                             ItemTemplate="{StaticResource ThemeCardTemplate}"

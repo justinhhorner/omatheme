@@ -33,6 +33,8 @@ public enum ColorsTomlParser {
             accent: get("accent") ?? get("color4") ?? get("blue") ?? foreground,
             cursor: get("cursor"),
             selection: get("selection_background") ?? get("selection"),
+            muted: get("muted"),
+            brightForeground: get("bright_foreground"),
             declaredMode: parseMode(values["mode"]),
             swatches: swatches,
             source: .colorsToml)

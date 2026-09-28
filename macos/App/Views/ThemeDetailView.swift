@@ -58,6 +58,7 @@ struct ThemeDetailView: View {
                         .frame(maxWidth: .infinity)
                 } else {
                     paletteSection
+                    terminalSection
                     wallpaperSection
                 }
             }
@@ -235,6 +236,66 @@ struct ThemeDetailView: View {
         }
     }
 
+    // MARK: Terminal colors
+
+    @ViewBuilder
+    private var terminalSection: some View {
+        if let palette {
+            let exporter = model.selectedTerminal
+            let themeName = installed?.name ?? entry.name
+            let scheme = exporter.schemeName(forTheme: themeName)
+            let isAdded = model.terminalRevision >= 0 && exporter.isAdded(slug: entry.slug, themeName: themeName)
+            let colors = TerminalColors(palette)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Terminal Colors").font(.title2.weight(.semibold))
+                HStack(spacing: 10) {
+                    Picker("Terminal", selection: Binding(get: { exporter.id }, set: { model.selectTerminal($0) })) {
+                        ForEach(model.terminals, id: \.id) { terminal in
+                            Text(terminal.isInstalled ? terminal.displayName : "\(terminal.displayName) (not installed)")
+                                .tag(terminal.id)
+                        }
+                    }
+                    .fixedSize()
+                    .accessibilityIdentifier("terminalPicker")
+
+                    if isAdded {
+                        Button(exporter.canRemove ? "Remove from \(exporter.displayName)" : "How to Remove…") {
+                            showTerminalBanner(model.removeFromTerminal(entry))
+                        }
+                        .accessibilityIdentifier("removeFromTerminalButton")
+                    } else {
+                        Button("Add to \(exporter.displayName)") {
+                            Task { showTerminalBanner(await model.addToTerminal(entry, palette: palette)) }
+                        }
+                        .disabled(!exporter.isInstalled)
+                        .accessibilityIdentifier("addToTerminalButton")
+                    }
+                }
+                HStack(spacing: 2) {
+                    ForEach(Array(colors.ansi.enumerated()), id: \.offset) { index, color in
+                        Rectangle()
+                            .fill(Color(color))
+                            .frame(width: 18, height: 12)
+                            .help("\(index < 8 ? "" : "Bright ")\(TerminalColors.ansiNames[index % 8].lowercased()) \(color.hex.uppercased())")
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .accessibilityHidden(true)
+                Text(!exporter.isInstalled ? exporter.notInstalledHint
+                     : isAdded ? "Available in \(exporter.displayName) as “\(scheme)”."
+                     : exporter.addHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ContextBanner(context: .terminal(entry.slug))
+            }
+        }
+    }
+
+    private func showTerminalBanner(_ banner: Banner) {
+        withAnimation { model.banners[.terminal(entry.slug)] = banner }
+    }
+
     // MARK: Wallpapers
 
     @ViewBuilder
@@ -341,39 +402,34 @@ struct WallpaperThumbnail: View {
     let onPreview: () -> Void
     @State private var isHovered = false
 
+    /// Just the image: the file name is the tooltip, the accessibility label (set by the caller)
+    /// and shown in the large preview.
     var body: some View {
-        VStack(spacing: 6) {
-            ThumbnailImage(url: item.url, maxPixelSize: 400)
-                .frame(width: 192, height: 108)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(isSelected ? Color.accentColor : .primary.opacity(0.12), lineWidth: isSelected ? 3 : 1))
-                .overlay(alignment: .topTrailing) {
-                    if isHovered {
-                        Button(action: onPreview) {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.caption.weight(.semibold))
-                                .padding(6)
-                                .background(.regularMaterial, in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(6)
-                        .help("Preview")
-                        .accessibilityLabel("Preview \(item.name)")
-                        .transition(.opacity)
+        ThumbnailImage(url: item.url, maxPixelSize: 400)
+            .frame(width: 192, height: 108)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(isSelected ? Color.accentColor : .primary.opacity(0.12), lineWidth: isSelected ? 3 : 1))
+            .help(item.name)
+            .overlay(alignment: .topTrailing) {
+                if isHovered {
+                    Button(action: onPreview) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.caption.weight(.semibold))
+                            .padding(6)
+                            .background(.regularMaterial, in: Circle())
                     }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .help("Preview")
+                    .accessibilityLabel("Preview \(item.name)")
+                    .transition(.opacity)
                 }
-                .onHover { hovering in
-                    withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
-                }
-            Text(item.name)
-                .font(.caption)
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(width: 192)
-        }
+            }
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
+            }
     }
 }
 

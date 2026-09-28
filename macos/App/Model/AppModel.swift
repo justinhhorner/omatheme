@@ -22,6 +22,11 @@ final class AppModel {
     private let settingsStore: SettingsStore
     private let applier: ThemeApplier
 
+    /// Terminal apps a theme's colors can be sent to (see `TerminalExporters`).
+    let terminals: [any TerminalExporter]
+    /// Bumped after adding or removing, so views re-read `isAdded`.
+    private(set) var terminalRevision = 0
+
     // MARK: Catalog
 
     private(set) var entries: [CatalogEntry] = []
@@ -75,6 +80,17 @@ final class AppModel {
             ? DryRunDesktopBackend()
             : MacDesktopBackend(snapshotAssetsDir: paths.originalDesktopDir)
         applier = ThemeApplier(backend: backend, snapshots: FileSnapshotStore(paths: paths))
+
+        // In a dry run, terminal exports go to a folder in the data directory and nothing is opened,
+        // so UI checks can't touch real terminal settings either.
+        var terminalEnvironment = TerminalEnvironment.live(exportsDirectory: paths.root.appending(path: "terminal", directoryHint: .isDirectory))
+        if isDryRun {
+            let home = paths.root.appending(path: "dry-run-home", directoryHint: .isDirectory)
+            terminalEnvironment.homeDirectory = home
+            terminalEnvironment.configDirectory = home.appending(path: ".config", directoryHint: .isDirectory)
+            terminalEnvironment.open = { file, _ in log.info("Dry run: would open \(file.path, privacy: .public)") }
+        }
+        terminals = TerminalExporters.all(in: terminalEnvironment)
 
         store.cleanUpStaging()
         settings = settingsStore.load()
@@ -271,12 +287,7 @@ final class AppModel {
         let request = ApplyRequest.from(theme, wallpaperFile: wallpaperFile, options: options)
         do {
             let result = try await applier.apply(request)
-            if result.anyApplied {
-                updateSettings {
-                    $0.lastAppliedSlug = theme.slug
-                    $0.lastAppliedWallpaper = request.wallpaper?.lastPathComponent
-                }
-            }
+            updateSettings { $0 = $0.afterApply(theme.slug, wallpaperFile: request.wallpaper?.lastPathComponent, result: result) }
             return ApplySummary.describe(result, themeName: theme.name, mode: theme.mode)
         } catch {
             return ApplySummary(kind: .info, title: "Apply cancelled", message: "Nothing was changed.")
@@ -286,6 +297,37 @@ final class AppModel {
     /// One-click apply with the defaults from Settings.
     func applyWithDefaults(_ theme: InstalledTheme) async -> ApplySummary {
         await apply(theme, wallpaperFile: preferredWallpaper(for: theme), options: settings.applyDefaults)
+    }
+
+    // MARK: Current theme
+
+    /// The theme on the desktop, if it's still downloaded (nil after Restore, which clears it).
+    var currentTheme: InstalledTheme? {
+        settings.lastAppliedSlug.flatMap(installedTheme)
+    }
+
+    /// Which of the current theme's wallpapers is on the desktop, if any.
+    var currentWallpaper: String? { settings.lastAppliedWallpaper }
+
+    /// The current theme's wallpaper being set right now, for its spinner.
+    private(set) var settingWallpaper: String?
+
+    /// Sets another of the current theme's wallpapers: wallpaper only (its light/dark and accent
+    /// are already applied), with the saved fit and the theme's background as fill color.
+    /// Success shows as the check mark moving; problems go to the card's banner.
+    func setCurrentWallpaper(_ file: String) async {
+        guard let theme = currentTheme, file != currentWallpaper, applyingSlug == nil else { return }
+        settingWallpaper = file
+        banners[.currentTheme] = nil
+        defer { settingWallpaper = nil }
+
+        let options = ApplyOptions(wallpaper: true, appearanceMode: false, accentColor: false, fit: settings.applyDefaults.fit)
+        let summary = await apply(theme, wallpaperFile: file, options: options)
+        if summary.kind != .success {
+            var banner = Banner(summary)
+            if summary.kind == .error { banner.title = "Couldn't change the wallpaper" }
+            banners[.currentTheme] = banner
+        }
     }
 
     func restoreOriginalDesktop() async -> Banner {
@@ -302,6 +344,68 @@ final class AppModel {
         } catch {
             return Banner(kind: .error, title: "Couldn't restore your desktop", message: error.localizedDescription)
         }
+    }
+
+    // MARK: Terminal colors
+
+    /// The terminal picked on theme pages (iTerm2 until the user picks another).
+    var selectedTerminal: any TerminalExporter {
+        terminals.first { $0.id == settings.terminalApp }
+            ?? terminals.first { $0.id == TerminalExporters.defaultID }
+            ?? terminals[0]
+    }
+
+    func selectTerminal(_ id: String) {
+        updateSettings { $0.terminalApp = id }
+    }
+
+    /// Adds the theme's colors to the selected terminal.
+    func addToTerminal(_ entry: CatalogEntry, palette: Palette) async -> Banner {
+        let exporter = selectedTerminal
+        let name = installedTheme(entry.slug)?.name ?? entry.name
+        let scheme = exporter.schemeName(forTheme: name)
+        let colors = TerminalColors(await paletteForTerminal(entry, saved: palette))
+        do {
+            try exporter.add(slug: entry.slug, themeName: name, colors: colors)
+            terminalRevision += 1
+            // Terminal.app imports the profile after it opens the file.
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                terminalRevision += 1
+            }
+            return Banner(kind: .success, title: "Added to \(exporter.displayName)", message: exporter.addedMessage(scheme: scheme))
+        } catch {
+            log.error("Adding \(entry.slug, privacy: .public) to \(exporter.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            return Banner(kind: .error, title: "Couldn't add to \(exporter.displayName)", message: error.localizedDescription)
+        }
+    }
+
+    /// Removes the theme's colors from the selected terminal, or says how to where that's manual.
+    func removeFromTerminal(_ entry: CatalogEntry) -> Banner {
+        let exporter = selectedTerminal
+        let name = installedTheme(entry.slug)?.name ?? entry.name
+        let scheme = exporter.schemeName(forTheme: name)
+        guard exporter.canRemove else {
+            return Banner(kind: .info, title: "Remove it in \(exporter.displayName)", message: exporter.removeInstructions(scheme: scheme))
+        }
+        do {
+            try exporter.remove(slug: entry.slug, themeName: name)
+            terminalRevision += 1
+            return Banner(kind: .info, title: "Removed from \(exporter.displayName)", message: exporter.removedMessage(scheme: scheme))
+        } catch {
+            log.error("Removing \(entry.slug, privacy: .public) from \(exporter.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            return Banner(kind: .error, title: "Couldn't remove it from \(exporter.displayName)", message: error.localizedDescription)
+        }
+    }
+
+    /// Themes downloaded before `muted` and `bright_foreground` were read saved a palette without
+    /// them, so look the theme up again (cached, usually free) for Omarchy's exact bright black,
+    /// bright white and cursor. Offline, use what's saved.
+    private func paletteForTerminal(_ entry: CatalogEntry, saved: Palette) async -> Palette {
+        let savedWithoutNamedExtras = saved.source == .colorsToml && saved.muted == nil && saved.brightForeground == nil
+            && !saved.swatches.contains { $0.name == "Bright black" }
+        guard installedTheme(entry.slug) != nil, savedWithoutNamedExtras else { return saved }
+        return (try? await details(for: entry))?.palette ?? saved
     }
 
     // MARK: Settings
@@ -337,9 +441,12 @@ enum SidebarItem: Hashable {
 
 enum BannerContext: Hashable {
     case gallery
+    case currentTheme
     case downloaded
     case settings
     case theme(String)
+    /// Results of sending a theme to a terminal, shown in that section of its page.
+    case terminal(String)
 }
 
 struct Banner: Equatable, Identifiable {
