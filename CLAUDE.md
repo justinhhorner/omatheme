@@ -24,7 +24,13 @@ pointers (as `docs/macos-to-windows.md` did; it was deleted once empty), and say
 
 As of Sep 27, 2026 (later) the macOS app also caught up with Windows: no wallpaper captions, the "Current theme"
 section with the `lastAppliedWallpaper` fix, terminal colors (see below) and a macOS README screenshot.
-`docs/windows-to-macos.md` was deleted once empty. Nothing is pending on either platform.
+`docs/windows-to-macos.md` was deleted once empty.
+
+**Pending for Windows (read this first on a Windows machine):** `docs/windows-review.md`, a code review done
+on the Mac. Start with its section 1: Core was refactored and tested there, but the Platform.Windows edits
+only compiled and the WinUI app couldn't be built, so build the solution and run the tests first. Then its
+bugs (unlogged crashes on disk errors, cache temp-file collisions, a non-atomic reinstall, a corrupt
+snapshot being overwritten), the App cleanups, and moving view-model logic into tested stores as on macOS.
 
 ## Decisions already made (don't reopen)
 
@@ -226,7 +232,7 @@ Gotchas found:
 ```bash
 cd windows
 dotnet build OmarchyThemes.sln
-dotnet test          # Core (158) + Windows backend (31) tests; live checks skipped
+dotnet test          # Core (161) + Windows backend (31) tests; live checks skipped
 dotnet run --project src/OmarchyThemes.App
 ```
 

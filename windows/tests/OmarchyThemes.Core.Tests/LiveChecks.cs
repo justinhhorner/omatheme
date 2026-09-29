@@ -83,21 +83,12 @@ public sealed class LiveChecks : IDisposable
         var reports = new List<long>();
 
         await new HttpDownloader(_http).DownloadAsync(
-            GitHubClient.RawUrl(DefaultThemes.Repo, wallpaper.Path), target, new Collector(reports), CancellationToken.None);
+            GitHubClient.RawUrl(DefaultThemes.Repo, wallpaper.Path), target, new ListProgress<long>(reports), CancellationToken.None);
 
         var length = new FileInfo(target).Length;
         Assert.Equal(wallpaper.Size, length);
         Assert.NotEmpty(reports);
         Assert.Equal(reports.Order(), reports);  // monotonic
         Assert.Equal(length, reports[^1]);       // ends at the file size, in bytes (not a percentage)
-    }
-
-    private sealed class Collector(List<long> into) : IProgress<long>
-    {
-        public void Report(long value)
-        {
-            lock (into)
-                into.Add(value);
-        }
     }
 }

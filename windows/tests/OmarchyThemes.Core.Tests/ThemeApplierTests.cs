@@ -151,7 +151,7 @@ public sealed class ThemeApplierTests : IDisposable
     {
         var steps = new List<ApplyStep>();
 
-        await _applier.ApplyAsync(Request(new ApplyOptions { AccentColor = false }), new Collector(steps));
+        await _applier.ApplyAsync(Request(new ApplyOptions { AccentColor = false }), new ListProgress<ApplyStep>(steps));
 
         Assert.Equal([ApplyStep.SaveOriginal, ApplyStep.Wallpaper, ApplyStep.AppearanceMode], steps);
     }
@@ -218,10 +218,5 @@ public sealed class ThemeApplierTests : IDisposable
 
         store.Clear();
         Assert.Null(store.Load());
-    }
-
-    private sealed class Collector(List<ApplyStep> into) : IProgress<ApplyStep>
-    {
-        public void Report(ApplyStep value) => into.Add(value);
     }
 }

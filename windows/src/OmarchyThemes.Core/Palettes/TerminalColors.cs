@@ -17,8 +17,6 @@ public sealed record TerminalColors(
     RgbColor SelectionBackground,
     IReadOnlyList<RgbColor> Ansi)
 {
-    public static readonly string[] AnsiNames = ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"];
-
     public static TerminalColors From(Palette palette)
     {
         var swatches = palette.Swatches
@@ -29,18 +27,18 @@ public sealed record TerminalColors(
         // A neutral between background and foreground, for themes with neither muted nor a bright black.
         var between = Mix(palette.Background, palette.Foreground, 0.35);
 
-        var normal = AnsiNames.Select(name => name switch
+        var normal = AnsiColors.Names.Select(name => name switch
         {
             "Black" => Swatch("Black") ?? palette.Background,
             "White" => Swatch("White") ?? palette.Foreground,
             _ => Swatch(name) ?? palette.Foreground,
         }).ToArray();
 
-        var bright = AnsiNames.Select((name, i) => name switch
+        var bright = AnsiColors.Names.Select((name, i) => name switch
         {
             "Black" => Swatch("Bright black") ?? palette.Muted ?? between,
             "White" => Swatch("Bright white") ?? palette.BrightForeground ?? normal[i],
-            _ => Swatch("Bright " + name.ToLowerInvariant()) ?? normal[i],
+            _ => Swatch(AnsiColors.SwatchName(i + 8)) ?? normal[i],
         }).ToArray();
 
         return new TerminalColors(

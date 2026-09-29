@@ -71,7 +71,7 @@ public sealed class WindowsDesktopBackendTests : IDisposable
     {
         await _backend.SetAccentColorAsync(RgbColor.Parse("#0a0a0a")); // Snow theme
 
-        var written = AccentMathFromAbgr(_registry.Get(DwmKey, "AccentColor")!.AsDWord!.Value);
+        var written = AccentMath.FromAbgr(_registry.Get(DwmKey, "AccentColor")!.AsDWord!.Value);
         Assert.InRange(written.ToHsl().L, 0.24, 0.76);
     }
 
@@ -197,8 +197,6 @@ public sealed class WindowsDesktopBackendTests : IDisposable
 
         Assert.Equal(value, RegValue.Deserialize(RegValue.Serialize(value)));
     }
-
-    private static RgbColor AccentMathFromAbgr(uint v) => AccentMath.FromAbgr(v);
 
     private sealed class FakeRegistry : IRegistryAccess
     {

@@ -41,8 +41,10 @@ public sealed record Palette
 
     public required PaletteSource Source { get; init; }
 
-    /// <summary>The declared mode, otherwise inferred from the background's luminance.</summary>
-    /// <summary>Derived, so not saved (docs/data-format.md).</summary>
+    /// <summary>
+    /// The declared mode, otherwise inferred from the background's luminance. Derived, so not saved
+    /// (docs/data-format.md).
+    /// </summary>
     [JsonIgnore]
     public AppearanceMode Mode => DeclaredMode ?? (Background.IsLight ? AppearanceMode.Light : AppearanceMode.Dark);
 }

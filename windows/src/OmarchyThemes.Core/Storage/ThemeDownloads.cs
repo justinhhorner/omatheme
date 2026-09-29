@@ -115,15 +115,18 @@ public sealed class ThemeDownloads
         try
         {
             var theme = await _details.ResolveAsync(entry, force: refresh, operation.Token).ConfigureAwait(false);
+            var count = theme.Wallpapers.Count;
             var sizes = theme.Wallpapers.Select(w => w.Size ?? 0).ToArray();
             var totalBytes = sizes.Sum();
-            var progress = new SyncProgress<DownloadProgress>(p => operation.Report(
-                p.FileIndex < theme.Wallpapers.Count
-                    ? new DownloadStatus(DownloadPhase.Downloading, p.FileIndex, theme.Wallpapers.Count, sizes.Take(p.FileIndex).Sum() + p.BytesReceived, totalBytes)
-                    : new DownloadStatus(DownloadPhase.Finishing, p.FileIndex, theme.Wallpapers.Count, totalBytes, totalBytes)));
+
+            // Wallpapers report bytes; anything after them (the screenshot, the manifest) is "finishing".
+            DownloadStatus Finishing(int fileIndex) => new(DownloadPhase.Finishing, fileIndex, count, totalBytes, totalBytes);
+            var progress = new SyncProgress<DownloadProgress>(p => operation.Report(p.FileIndex < count
+                ? new DownloadStatus(DownloadPhase.Downloading, p.FileIndex, count, sizes.Take(p.FileIndex).Sum() + p.BytesReceived, totalBytes)
+                : Finishing(p.FileIndex)));
 
             var installed = await _store.InstallAsync(theme, progress, operation.Token).ConfigureAwait(false);
-            operation.Report(new DownloadStatus(DownloadPhase.Finishing, theme.Wallpapers.Count, theme.Wallpapers.Count, totalBytes, totalBytes));
+            operation.Report(Finishing(count));
             _log.LogInformation("Downloaded {Slug}: {Count} wallpapers", entry.Slug, installed.Wallpapers.Count);
             return new DownloadOutcome(installed, theme, Cancelled: false, Error: null);
         }

@@ -153,6 +153,16 @@ internal sealed class InMemorySnapshotStore : ISnapshotStore
     public void Clear() => Snapshot = null;
 }
 
+/// <summary>Records every reported value, synchronously (unlike <see cref="Progress{T}"/>, which posts).</summary>
+internal sealed class ListProgress<T>(List<T> into) : IProgress<T>
+{
+    public void Report(T value)
+    {
+        lock (into)
+            into.Add(value);
+    }
+}
+
 internal static class Fixture
 {
     public static string Read(string name) =>

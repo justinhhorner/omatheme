@@ -59,9 +59,9 @@ public sealed class ThemeStore
 
     public IReadOnlyList<InstalledTheme> List()
     {
-        if (!System.IO.Directory.Exists(_paths.ThemesDir))
+        if (!Directory.Exists(_paths.ThemesDir))
             return [];
-        return System.IO.Directory.EnumerateDirectories(_paths.ThemesDir)
+        return Directory.EnumerateDirectories(_paths.ThemesDir)
             .Where(d => !Path.GetFileName(d).StartsWith('.'))
             .Select(Load)
             .OfType<InstalledTheme>()
@@ -92,7 +92,7 @@ public sealed class ThemeStore
         var slug = details.Entry.Slug;
         var finalDir = _paths.ThemeDir(slug);
         var staging = Path.Combine(_paths.ThemesDir, $".staging-{slug}-{Guid.NewGuid():N}");
-        System.IO.Directory.CreateDirectory(Path.Combine(staging, WallpapersFolder));
+        Directory.CreateDirectory(Path.Combine(staging, WallpapersFolder));
 
         try
         {
@@ -143,16 +143,16 @@ public sealed class ThemeStore
             };
             JsonFile.WriteAtomic(Path.Combine(staging, ManifestFile), theme);
 
-            if (System.IO.Directory.Exists(finalDir))
-                System.IO.Directory.Delete(finalDir, recursive: true);
-            System.IO.Directory.Move(staging, finalDir);
+            if (Directory.Exists(finalDir))
+                Directory.Delete(finalDir, recursive: true);
+            Directory.Move(staging, finalDir);
 
             Changed?.Invoke(this, EventArgs.Empty);
             return theme with { Directory = finalDir };
         }
         finally
         {
-            if (System.IO.Directory.Exists(staging))
+            if (Directory.Exists(staging))
                 TryDeleteDirectory(staging);
         }
     }
@@ -160,18 +160,18 @@ public sealed class ThemeStore
     public void Remove(string slug)
     {
         var dir = _paths.ThemeDir(slug);
-        if (!System.IO.Directory.Exists(dir))
+        if (!Directory.Exists(dir))
             return;
-        System.IO.Directory.Delete(dir, recursive: true);
+        Directory.Delete(dir, recursive: true);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Deletes leftovers from interrupted downloads (e.g. the app was killed mid-download).</summary>
     public void CleanUpStaging()
     {
-        if (!System.IO.Directory.Exists(_paths.ThemesDir))
+        if (!Directory.Exists(_paths.ThemesDir))
             return;
-        foreach (var dir in System.IO.Directory.EnumerateDirectories(_paths.ThemesDir, ".staging-*"))
+        foreach (var dir in Directory.EnumerateDirectories(_paths.ThemesDir, ".staging-*"))
             TryDeleteDirectory(dir);
     }
 
@@ -188,7 +188,7 @@ public sealed class ThemeStore
 
     private static void TryDeleteDirectory(string dir)
     {
-        try { System.IO.Directory.Delete(dir, recursive: true); }
+        try { Directory.Delete(dir, recursive: true); }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }

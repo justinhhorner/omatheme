@@ -35,21 +35,25 @@ public static class JsonFile
     }
 
     /// <summary>Writes via a temp file + rename so a crash never leaves a half-written file.</summary>
-    public static void WriteAtomic<T>(string path, T value)
+    public static void WriteAtomic<T>(string path, T value) => WriteAtomic(path, value, Options);
+
+    /// <summary>
+    /// <see cref="WriteAtomic{T}(string, T)"/> with other serializer options, for files in another
+    /// program's format. UTF-8 without a byte-order mark.
+    /// </summary>
+    public static void WriteAtomic<T>(string path, T value, JsonSerializerOptions options) =>
+        ReplaceAtomic(path, stream => JsonSerializer.Serialize(stream, value, options));
+
+    /// <summary>Writes bytes via a temp file + rename.</summary>
+    public static void WriteBytesAtomic(string path, byte[] bytes) =>
+        ReplaceAtomic(path, stream => stream.Write(bytes));
+
+    private static void ReplaceAtomic(string path, Action<Stream> write)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temp = path + ".tmp";
         using (var stream = File.Create(temp))
-            JsonSerializer.Serialize(stream, value, Options);
-        File.Move(temp, path, overwrite: true);
-    }
-
-    /// <summary>Writes bytes via a temp file + rename.</summary>
-    public static void WriteBytesAtomic(string path, byte[] bytes)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temp = path + ".tmp";
-        File.WriteAllBytes(temp, bytes);
+            write(stream);
         File.Move(temp, path, overwrite: true);
     }
 }

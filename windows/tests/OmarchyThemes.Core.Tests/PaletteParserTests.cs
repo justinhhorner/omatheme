@@ -108,6 +108,16 @@ public class PaletteParserTests
     }
 
     [Fact]
+    public void Both_formats_name_the_16_ansi_swatches_the_same_way()
+    {
+        var names = Enumerable.Range(0, 16).Select(AnsiColors.SwatchName).ToList();
+
+        Assert.Equal(["Black", "White", "Bright black", "Bright white"], new[] { names[0], names[7], names[8], names[15] });
+        Assert.Equal(names, ColorsTomlParser.Parse(Fixture.Read("colors-ansi.toml")).Swatches.Select(s => s.Name));
+        Assert.Equal(names, AlacrittyParser.Parse(Fixture.Read("alacritty.toml")).Swatches.Select(s => s.Name));
+    }
+
+    [Fact]
     public void Rejects_alacritty_without_primary_colors()
     {
         Assert.Throws<PaletteParseException>(() => AlacrittyParser.Parse("[font]\nsize = 12"));

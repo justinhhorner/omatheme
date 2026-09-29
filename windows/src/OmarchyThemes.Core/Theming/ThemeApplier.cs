@@ -1,85 +1,4 @@
-using OmarchyThemes.Core.Colors;
-using OmarchyThemes.Core.Palettes;
-using OmarchyThemes.Core.Storage;
-
 namespace OmarchyThemes.Core.Theming;
-
-/// <summary>The user's per-aspect choices in the Apply dialog.</summary>
-public sealed record ApplyOptions
-{
-    public bool Wallpaper { get; init; } = true;
-    public bool AppearanceMode { get; init; } = true;
-    public bool AccentColor { get; init; } = true;
-    public WallpaperFit Fit { get; init; } = WallpaperFit.Fill;
-}
-
-/// <summary>What to apply. Built from a downloaded theme, so no network is involved.</summary>
-public sealed record ApplyRequest(string ThemeName, string? WallpaperPath, AppearanceMode Mode, RgbColor? Accent, ApplyOptions Options)
-{
-    /// <summary>The theme's background color, used as the desktop fill around Fit/Center wallpapers.</summary>
-    public RgbColor? Background { get; init; }
-
-    /// <param name="wallpaperFile">One of <see cref="InstalledTheme.Wallpapers"/>; defaults to the first.</param>
-    public static ApplyRequest FromInstalled(InstalledTheme theme, string? wallpaperFile, ApplyOptions options)
-    {
-        var file = wallpaperFile is not null && theme.Wallpapers.Contains(wallpaperFile)
-            ? wallpaperFile
-            : theme.Wallpapers.FirstOrDefault();
-        return new ApplyRequest(theme.Name, file is null ? null : theme.WallpaperPath(file), theme.Mode, theme.Palette?.Accent, options)
-        {
-            Background = theme.Palette?.Background,
-        };
-    }
-}
-
-public enum ApplyStep
-{
-    SaveOriginal,
-    Wallpaper,
-    AppearanceMode,
-    AccentColor,
-}
-
-public enum StepOutcome
-{
-    Applied,
-    /// <summary>The user unchecked it.</summary>
-    SkippedByUser,
-    /// <summary>This OS/backend can't change it.</summary>
-    NotSupported,
-    /// <summary>The theme has nothing for it (e.g. no wallpaper or palette).</summary>
-    NoData,
-    /// <summary>An earlier step failed in a way that made continuing unsafe.</summary>
-    NotAttempted,
-    Failed,
-}
-
-public sealed record StepResult(ApplyStep Step, StepOutcome Outcome, string? Error = null);
-
-public sealed record ApplyResult(IReadOnlyList<StepResult> Steps)
-{
-    public bool AnyApplied => Steps.Any(s => s.Outcome == StepOutcome.Applied);
-    public bool AnyFailed => Steps.Any(s => s.Outcome == StepOutcome.Failed);
-    public bool Succeeded => AnyApplied && !AnyFailed;
-
-    public StepResult? For(ApplyStep step) => Steps.FirstOrDefault(s => s.Step == step);
-}
-
-public interface ISnapshotStore
-{
-    DesktopSnapshot? Load();
-    void Save(DesktopSnapshot snapshot);
-    void Clear();
-}
-
-public sealed class FileSnapshotStore(AppPaths paths) : ISnapshotStore
-{
-    public DesktopSnapshot? Load() => JsonFile.TryRead<DesktopSnapshot>(paths.SnapshotFile);
-
-    public void Save(DesktopSnapshot snapshot) => JsonFile.WriteAtomic(paths.SnapshotFile, snapshot);
-
-    public void Clear() => File.Delete(paths.SnapshotFile);
-}
 
 /// <summary>
 /// Applies a theme through an <see cref="IDesktopBackend"/>. Before the first change it saves
@@ -123,8 +42,8 @@ public sealed class ThemeApplier
                     // Without a snapshot we couldn't undo, so change nothing.
                     results.Add(new StepResult(ApplyStep.SaveOriginal, StepOutcome.Failed,
                         $"Couldn't save your current desktop, so nothing was changed. {e.Message}"));
-                    results.AddRange(new[] { ApplyStep.Wallpaper, ApplyStep.AppearanceMode, ApplyStep.AccentColor }
-                        .Select(s => new StepResult(s, StepOutcome.NotAttempted)));
+                    ApplyStep[] notAttempted = [ApplyStep.Wallpaper, ApplyStep.AppearanceMode, ApplyStep.AccentColor];
+                    results.AddRange(notAttempted.Select(s => new StepResult(s, StepOutcome.NotAttempted)));
                     return new ApplyResult(results);
                 }
             }

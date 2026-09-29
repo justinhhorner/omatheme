@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using OmarchyThemes.Core;
 using OmarchyThemes.Core.Palettes;
+using OmarchyThemes.Core.Storage;
 
 namespace OmarchyThemes.Platform.Windows;
 
@@ -38,16 +39,8 @@ public sealed class WindowsTerminalSchemes(string fragmentsDir)
     public bool IsAdded(string slug) => File.Exists(FilePath(slug));
 
     /// <summary>Writes (or replaces) the theme's scheme. UTF-8 without a BOM, as Terminal requires.</summary>
-    public void Add(string slug, string themeName, TerminalColors colors)
-    {
-        var fragment = new Fragment([Scheme.From(SchemeName(themeName), colors)]);
-        Directory.CreateDirectory(FragmentsDir);
-        var path = FilePath(slug);
-        var temp = path + ".tmp";
-        using (var stream = File.Create(temp))
-            JsonSerializer.Serialize(stream, fragment, Json);
-        File.Move(temp, path, overwrite: true);
-    }
+    public void Add(string slug, string themeName, TerminalColors colors) =>
+        JsonFile.WriteAtomic(FilePath(slug), new Fragment([Scheme.From(SchemeName(themeName), colors)]), Json);
 
     public void Remove(string slug)
     {

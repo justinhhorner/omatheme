@@ -43,7 +43,7 @@ public sealed class ThemeStoreTests : IDisposable
     {
         var reports = new List<DownloadProgress>();
 
-        var installed = await _store.InstallAsync(Details("tokyo", "1.png", "2.jpg"), new SyncCollector(reports));
+        var installed = await _store.InstallAsync(Details("tokyo", "1.png", "2.jpg"), new ListProgress<DownloadProgress>(reports));
 
         Assert.Equal(["1.png", "2.jpg"], installed.Wallpapers);
         Assert.True(File.Exists(installed.WallpaperPath("1.png")));
@@ -200,10 +200,5 @@ public sealed class ThemeStoreTests : IDisposable
         var before = new AppSettings { LastAppliedSlug = "tokyo", LastAppliedWallpaper = "2.png" };
 
         Assert.Same(before, before.AfterApply("snow", "1.png", Result(StepOutcome.Failed, StepOutcome.Failed)));
-    }
-
-    private sealed class SyncCollector(List<DownloadProgress> into) : IProgress<DownloadProgress>
-    {
-        public void Report(DownloadProgress value) => into.Add(value);
     }
 }

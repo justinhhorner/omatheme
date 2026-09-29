@@ -79,7 +79,7 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
         var values = new Dictionary<string, string>();
 
         foreach (var (key, name) in TrackedValues)
-            values[$"{RegPrefix}{key}|{name}"] = RegValue.Serialize(_registry.Read(key, name));
+            values[RegSnapshotKey(key, name)] = RegValue.Serialize(_registry.Read(key, name));
 
         var state = await _wallpaper.GetAsync().ConfigureAwait(false);
         if (state.Fit is { } fit)
@@ -116,7 +116,7 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
     {
         foreach (var (key, name) in TrackedValues)
         {
-            if (!snapshot.Values.TryGetValue($"{RegPrefix}{key}|{name}", out var serialized))
+            if (!snapshot.Values.TryGetValue(RegSnapshotKey(key, name), out var serialized))
                 continue;
             if (RegValue.Deserialize(serialized) is { } value)
                 _registry.Write(key, name, value);
@@ -180,6 +180,9 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
         _broadcaster.Broadcast(Win32SettingsBroadcaster.ImmersiveColorSet);
         return Task.CompletedTask;
     }
+
+    /// <summary>"reg:&lt;key&gt;|&lt;name&gt;": the snapshot key of a tracked registry value (part of saved snapshots).</summary>
+    private static string RegSnapshotKey(string key, string name) => $"{RegPrefix}{key}|{name}";
 
     private static string ImageExtension(string path)
     {

@@ -12,9 +12,6 @@ namespace OmarchyThemes.Core.Palettes;
 /// </summary>
 public static class ColorsTomlParser
 {
-    private static readonly string[] AnsiNames =
-        ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"];
-
     private static readonly string[] NamedKeys =
     [
         "red", "orange", "yellow", "green", "cyan", "blue", "magenta", "brown",
@@ -33,7 +30,7 @@ public static class ColorsTomlParser
         for (var i = 0; i < 16; i++)
         {
             if (get($"color{i}") is { } c)
-                swatches.Add(new NamedColor(i < 8 ? AnsiNames[i] : "Bright " + AnsiNames[i - 8].ToLowerInvariant(), c));
+                swatches.Add(new NamedColor(AnsiColors.SwatchName(i), c));
         }
         if (swatches.Count == 0)
         {
@@ -76,8 +73,6 @@ public static class ColorsTomlParser
 /// <summary>alacritty.toml, the fallback for themes that predate colors.toml.</summary>
 public static class AlacrittyParser
 {
-    private static readonly string[] Names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
-
     public static Palette Parse(string text)
     {
         var values = FlatToml.Parse(text);
@@ -89,13 +84,11 @@ public static class AlacrittyParser
             ?? throw new PaletteParseException("alacritty.toml has no valid [colors.primary] foreground.");
 
         var swatches = new List<NamedColor>();
-        foreach (var (group, label) in new[] { ("normal", ""), ("bright", "Bright ") })
+        for (var i = 0; i < 16; i++)
         {
-            foreach (var name in Names)
-            {
-                if (get($"colors.{group}.{name}") is { } c)
-                    swatches.Add(new NamedColor(label.Length == 0 ? char.ToUpperInvariant(name[0]) + name[1..] : label + name, c));
-            }
+            var key = $"colors.{(i < 8 ? "normal" : "bright")}.{AnsiColors.Names[i % 8].ToLowerInvariant()}";
+            if (get(key) is { } c)
+                swatches.Add(new NamedColor(AnsiColors.SwatchName(i), c));
         }
 
         return new Palette
