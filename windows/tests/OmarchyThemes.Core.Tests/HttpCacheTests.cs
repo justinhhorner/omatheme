@@ -98,6 +98,21 @@ public sealed class HttpCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task Returns_the_response_when_caching_it_fails()
+    {
+        // A file where the cache folder should be makes every cache write fail.
+        var blocked = Path.Combine(_dir.Path, "blocked");
+        File.WriteAllText(blocked, "");
+        var cache = new HttpCache(new HttpClient(_http), blocked, _time);
+        _http.On(Url, "v1", etag: "\"a\"");
+
+        var response = await cache.GetAsync(new Uri(Url));
+
+        Assert.Equal("v1", response.Text);
+        Assert.Null(cache.TryGetCached(new Uri(Url)));
+    }
+
+    [Fact]
     public async Task Catalog_service_loads_cache_offline_and_rejects_pages_without_themes()
     {
         var page = CatalogParser.DefaultPageUri.AbsoluteUri;

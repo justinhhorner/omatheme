@@ -30,11 +30,12 @@ public sealed class WindowsDesktopBackendTests : IDisposable
     }
 
     [Fact]
-    public void Reports_all_three_capabilities()
+    public void Reports_all_three_capabilities_and_the_sign_out_note()
     {
         Assert.Equal(
             DesktopCapabilities.Wallpaper | DesktopCapabilities.AppearanceMode | DesktopCapabilities.AccentColor,
             _backend.Capabilities);
+        Assert.Contains("sign out", _backend.AccentColorNote);
     }
 
     [Theory]
@@ -156,8 +157,23 @@ public sealed class WindowsDesktopBackendTests : IDisposable
 
         var path = Assert.Single(_wallpaper.Restored!.Monitors).Path;
         Assert.NotEqual(original, path);
-        Assert.StartsWith(Path.Combine(_dir, "snapshot"), path);
+        Assert.Equal(Path.Combine(_dir, "snapshot"), Path.GetDirectoryName(path));
         Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public async Task A_failed_capture_keeps_the_previous_wallpaper_copies()
+    {
+        var original = Path.Combine(_dir, "original.jpg");
+        File.WriteAllBytes(original, [1, 2, 3]);
+        _wallpaper.State = new WallpaperState([new MonitorWallpaper("MON1", original)], WallpaperFit.Fill);
+        var first = await _backend.CaptureAsync();
+
+        using (File.Open(original, FileMode.Open, FileAccess.Read, FileShare.None))
+            await Assert.ThrowsAsync<IOException>(() => _backend.CaptureAsync());
+
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(first.Values["monitor-copy:MON1"]));
+        Assert.Equal([Path.Combine(_dir, "snapshot")], Directory.GetDirectories(_dir));
     }
 
     [Fact]

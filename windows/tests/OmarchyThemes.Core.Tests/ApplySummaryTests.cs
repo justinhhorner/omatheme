@@ -9,27 +9,26 @@ public class ApplySummaryTests
         new(steps.Select(s => new StepResult(s.Step, s.Outcome, s.Error)).ToList());
 
     [Fact]
-    public void Success_lists_what_changed_and_mentions_sign_out_for_accent()
+    public void Success_lists_what_changed_and_adds_the_backend_note_for_accent()
     {
         var summary = ApplySummary.Describe(Result(
             (ApplyStep.SaveOriginal, StepOutcome.Applied, null),
             (ApplyStep.Wallpaper, StepOutcome.Applied, null),
             (ApplyStep.AppearanceMode, StepOutcome.Applied, null),
-            (ApplyStep.AccentColor, StepOutcome.Applied, null)), "Tokyo Night", AppearanceMode.Dark);
+            (ApplyStep.AccentColor, StepOutcome.Applied, null)), "Tokyo Night", AppearanceMode.Dark, "Sign out to see it everywhere.");
 
         Assert.Equal(SummaryKind.Success, summary.Kind);
         Assert.Equal("Tokyo Night applied", summary.Title);
-        Assert.StartsWith("Updated the wallpaper, dark mode, and the accent color.", summary.Message);
-        Assert.Contains("sign out", summary.Message);
+        Assert.Equal("Updated the wallpaper, dark mode, and the accent color. Sign out to see it everywhere.", summary.Message);
     }
 
     [Fact]
-    public void Wallpaper_only_success_has_no_sign_out_note()
+    public void Wallpaper_only_success_has_no_accent_note()
     {
         var summary = ApplySummary.Describe(Result(
             (ApplyStep.Wallpaper, StepOutcome.Applied, null),
             (ApplyStep.AppearanceMode, StepOutcome.SkippedByUser, null),
-            (ApplyStep.AccentColor, StepOutcome.NotSupported, null)), "Snow", AppearanceMode.Light);
+            (ApplyStep.AccentColor, StepOutcome.NotSupported, null)), "Snow", AppearanceMode.Light, "Sign out to see it everywhere.");
 
         Assert.Equal("Updated the wallpaper.", summary.Message);
     }

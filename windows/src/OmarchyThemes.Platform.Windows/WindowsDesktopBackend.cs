@@ -71,8 +71,15 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
     public static WindowsDesktopBackend CreateDefault(string snapshotAssetsDir) => new(
         new DesktopWallpaperApi(), new CurrentUserRegistry(), new Win32SettingsBroadcaster(), new WicImageConverter(), snapshotAssetsDir);
 
-    public DesktopCapabilities Capabilities =>
+    /// <summary>What this backend changes; the dry-run backend reports the same.</summary>
+    public const DesktopCapabilities Supported =
         DesktopCapabilities.Wallpaper | DesktopCapabilities.AppearanceMode | DesktopCapabilities.AccentColor;
+
+    public const string AccentNote = "Some parts of Windows may only pick up the new accent color after you sign out.";
+
+    public DesktopCapabilities Capabilities => Supported;
+
+    public string? AccentColorNote => AccentNote;
 
     public async Task<DesktopSnapshot> CaptureAsync(CancellationToken ct = default)
     {
@@ -90,23 +97,38 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
 
         // Keep a private copy of each original wallpaper: Windows' own copy (TranscodedWallpaper)
         // is overwritten when we set a new one, and the user may delete the original file later.
-        if (Directory.Exists(_snapshotAssetsDir))
-            Directory.Delete(_snapshotAssetsDir, recursive: true);
-        var copies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < state.Monitors.Count; i++)
+        // The copies go to a staging folder that replaces the previous ones only once they're all made.
+        var staging = _snapshotAssetsDir + ".new";
+        DeleteDirectoryIfExists(staging);
+        try
         {
-            var monitor = state.Monitors[i];
-            values[MonitorPrefix + monitor.MonitorId] = monitor.Path;
-            if (monitor.Path.Length == 0 || !File.Exists(monitor.Path))
-                continue;
-            if (!copies.TryGetValue(monitor.Path, out var copy))
+            var copies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < state.Monitors.Count; i++)
             {
-                Directory.CreateDirectory(_snapshotAssetsDir);
-                copy = Path.Combine(_snapshotAssetsDir, $"{i}{ImageExtension(monitor.Path)}");
-                File.Copy(monitor.Path, copy, overwrite: true);
-                copies[monitor.Path] = copy;
+                var monitor = state.Monitors[i];
+                values[MonitorPrefix + monitor.MonitorId] = monitor.Path;
+                if (monitor.Path.Length == 0 || !File.Exists(monitor.Path))
+                    continue;
+                if (!copies.TryGetValue(monitor.Path, out var copy))
+                {
+                    var fileName = $"{i}{ImageExtension(monitor.Path)}";
+                    Directory.CreateDirectory(staging);
+                    File.Copy(monitor.Path, Path.Combine(staging, fileName), overwrite: true);
+                    copy = Path.Combine(_snapshotAssetsDir, fileName);
+                    copies[monitor.Path] = copy;
+                }
+                values[CopyPrefix + monitor.MonitorId] = copy;
             }
-            values[CopyPrefix + monitor.MonitorId] = copy;
+
+            DeleteDirectoryIfExists(_snapshotAssetsDir);
+            if (Directory.Exists(staging))
+                Directory.Move(staging, _snapshotAssetsDir);
+        }
+        catch
+        {
+            try { DeleteDirectoryIfExists(staging); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            throw;
         }
 
         return new DesktopSnapshot(_time.GetUtcNow(), values);
@@ -164,18 +186,20 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
     public Task SetAccentColorAsync(RgbColor accent, CancellationToken ct = default)
     {
         var color = AccentMath.NormalizeAccent(accent);
-        var shades = AccentMath.Shades(color);
+        var abgr = AccentMath.ToAbgr(color);
+        var colorization = AccentMath.ToArgb(color, 0xC4);
+        var startMenu = AccentMath.ToAbgr(AccentMath.Shades(color)[4]);
 
         // Stop Windows from re-deriving the accent from the wallpaper we may have just set.
         _registry.Write(DesktopKey, "AutoColorization", RegValue.DWord(0));
 
         _registry.Write(AccentKey, "AccentPalette", RegValue.Binary(AccentMath.ToAccentPaletteBytes(color)));
-        _registry.Write(AccentKey, "AccentColorMenu", RegValue.DWord(AccentMath.ToAbgr(color)));
-        _registry.Write(AccentKey, "StartColorMenu", RegValue.DWord(AccentMath.ToAbgr(shades[4])));
+        _registry.Write(AccentKey, "AccentColorMenu", RegValue.DWord(abgr));
+        _registry.Write(AccentKey, "StartColorMenu", RegValue.DWord(startMenu));
 
-        _registry.Write(DwmKey, "AccentColor", RegValue.DWord(AccentMath.ToAbgr(color)));
-        _registry.Write(DwmKey, "ColorizationColor", RegValue.DWord(AccentMath.ToArgb(color, 0xC4)));
-        _registry.Write(DwmKey, "ColorizationAfterglow", RegValue.DWord(AccentMath.ToArgb(color, 0xC4)));
+        _registry.Write(DwmKey, "AccentColor", RegValue.DWord(abgr));
+        _registry.Write(DwmKey, "ColorizationColor", RegValue.DWord(colorization));
+        _registry.Write(DwmKey, "ColorizationAfterglow", RegValue.DWord(colorization));
 
         _broadcaster.Broadcast(Win32SettingsBroadcaster.ImmersiveColorSet);
         return Task.CompletedTask;
@@ -183,6 +207,12 @@ public sealed class WindowsDesktopBackend : IDesktopBackend
 
     /// <summary>"reg:&lt;key&gt;|&lt;name&gt;": the snapshot key of a tracked registry value (part of saved snapshots).</summary>
     private static string RegSnapshotKey(string key, string name) => $"{RegPrefix}{key}|{name}";
+
+    private static void DeleteDirectoryIfExists(string path)
+    {
+        if (Directory.Exists(path))
+            Directory.Delete(path, recursive: true);
+    }
 
     private static string ImageExtension(string path)
     {

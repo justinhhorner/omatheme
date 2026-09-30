@@ -62,7 +62,7 @@ public sealed class ApplyService(ThemeApplier applier, SettingsStore settings, I
             settings.Update(s => s.AfterApply(theme.Slug, file, result));
             ActiveThemeChanged?.Invoke(this, EventArgs.Empty);
         }
-        return ApplySummary.Describe(result, theme.Name, theme.Mode);
+        return ApplySummary.Describe(result, theme.Name, theme.Mode, applier.AccentColorNote);
     }
 
     public async Task<bool> RestoreOriginalAsync()

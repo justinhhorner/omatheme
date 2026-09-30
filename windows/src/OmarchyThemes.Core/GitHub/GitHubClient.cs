@@ -33,7 +33,7 @@ public sealed class GitHubClient
             ConfigureRequest = r =>
             {
                 // GitHub rejects API requests without a User-Agent.
-                r.Headers.UserAgent.Add(new ProductInfoHeaderValue("OmarchyThemes", "1.0"));
+                r.Headers.UserAgent.ParseAdd(AppInfo.UserAgent);
                 r.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
                 r.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
                 if (_token is not null)

@@ -1,17 +1,19 @@
 using OmarchyThemes.Core.Colors;
 using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Theming;
+using OmarchyThemes.Platform.Windows;
 
 namespace OmarchyThemes.App.Services;
 
 /// <summary>
-/// Used when OMARCHY_THEMES_DRY_RUN=1: reports the same capabilities as the Windows backend but
+/// Used when OMARCHY_THEMES_DRY_RUN=1: reports what the Windows backend does (capabilities, accent note) but
 /// changes nothing, so Apply and Restore can be exercised end to end without touching the desktop.
 /// </summary>
 public sealed class DryRunDesktopBackend : IDesktopBackend
 {
-    public DesktopCapabilities Capabilities =>
-        DesktopCapabilities.Wallpaper | DesktopCapabilities.AppearanceMode | DesktopCapabilities.AccentColor;
+    public DesktopCapabilities Capabilities => WindowsDesktopBackend.Supported;
+
+    public string? AccentColorNote => WindowsDesktopBackend.AccentNote;
 
     public Task<DesktopSnapshot> CaptureAsync(CancellationToken ct = default) =>
         Task.FromResult(new DesktopSnapshot(DateTimeOffset.UtcNow, new Dictionary<string, string> { ["dryRun"] = "1" }));

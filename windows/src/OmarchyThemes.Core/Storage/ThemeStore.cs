@@ -43,9 +43,17 @@ public sealed class ThemeStore
     internal const string ManifestFile = "theme.json";
     internal const string WallpapersFolder = "wallpapers";
 
+    // Hidden working folders beside the themes (List skips names starting with a dot).
+    private const string StagingPrefix = ".staging-";
+    private const string PreviousPrefix = ".old-";
+    private const string RemovedPrefix = ".removed-";
+
     private readonly AppPaths _paths;
     private readonly IDownloader _downloader;
     private readonly TimeProvider _time;
+
+    /// <summary>Renames a folder; replaceable so tests can make a move fail.</summary>
+    internal Action<string, string> MoveDirectory { get; init; } = Directory.Move;
 
     public ThemeStore(AppPaths paths, IDownloader downloader, TimeProvider? time = null)
     {
@@ -91,7 +99,7 @@ public sealed class ThemeStore
 
         var slug = details.Entry.Slug;
         var finalDir = _paths.ThemeDir(slug);
-        var staging = Path.Combine(_paths.ThemesDir, $".staging-{slug}-{Guid.NewGuid():N}");
+        var staging = Path.Combine(_paths.ThemesDir, $"{StagingPrefix}{slug}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(staging, WallpapersFolder));
 
         try
@@ -143,9 +151,7 @@ public sealed class ThemeStore
             };
             JsonFile.WriteAtomic(Path.Combine(staging, ManifestFile), theme);
 
-            if (Directory.Exists(finalDir))
-                Directory.Delete(finalDir, recursive: true);
-            Directory.Move(staging, finalDir);
+            ReplaceInstalled(slug, staging, finalDir);
 
             Changed?.Invoke(this, EventArgs.Empty);
             return theme with { Directory = finalDir };
@@ -157,22 +163,84 @@ public sealed class ThemeStore
         }
     }
 
+    /// <summary>
+    /// Swaps a staged theme in for the installed copy. The old folder is renamed aside first and
+    /// deleted only once the new one is in place, so a failure at any point leaves a complete copy.
+    /// </summary>
+    private void ReplaceInstalled(string slug, string staging, string finalDir)
+    {
+        string? previous = null;
+        if (Directory.Exists(finalDir))
+        {
+            previous = Path.Combine(_paths.ThemesDir, $"{PreviousPrefix}{slug}-{Guid.NewGuid():N}");
+            MoveDirectory(finalDir, previous);
+        }
+
+        try
+        {
+            MoveDirectory(staging, finalDir);
+        }
+        catch when (previous is not null)
+        {
+            // Put the old copy back. If even that fails, CleanUpStaging restores it on the next launch.
+            try { MoveDirectory(previous, finalDir); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            throw;
+        }
+
+        if (previous is not null)
+            TryDeleteDirectory(previous);
+    }
+
+    /// <summary>
+    /// Renames the theme aside before deleting it, so a locked file fails the removal with the theme
+    /// still whole rather than half-deleted.
+    /// </summary>
     public void Remove(string slug)
     {
         var dir = _paths.ThemeDir(slug);
         if (!Directory.Exists(dir))
             return;
-        Directory.Delete(dir, recursive: true);
+        var removed = Path.Combine(_paths.ThemesDir, $"{RemovedPrefix}{slug}-{Guid.NewGuid():N}");
+        MoveDirectory(dir, removed);
+        TryDeleteDirectory(removed);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Deletes leftovers from interrupted downloads (e.g. the app was killed mid-download).</summary>
+    /// <summary>
+    /// Tidies up after an interrupted download, reinstall or removal (e.g. the app was killed): deletes
+    /// staging and removed folders, and puts back a previous copy that a failed reinstall left aside.
+    /// </summary>
     public void CleanUpStaging()
     {
         if (!Directory.Exists(_paths.ThemesDir))
             return;
-        foreach (var dir in Directory.EnumerateDirectories(_paths.ThemesDir, ".staging-*"))
+        foreach (var dir in Directory.EnumerateDirectories(_paths.ThemesDir, StagingPrefix + "*")
+                     .Concat(Directory.EnumerateDirectories(_paths.ThemesDir, RemovedPrefix + "*")))
             TryDeleteDirectory(dir);
+
+        foreach (var dir in Directory.EnumerateDirectories(_paths.ThemesDir, PreviousPrefix + "*"))
+        {
+            var target = SlugOfPrevious(Path.GetFileName(dir)) is { } slug ? _paths.ThemeDir(slug) : null;
+            if (target is null || Directory.Exists(target))
+            {
+                TryDeleteDirectory(dir);
+                continue;
+            }
+            try { MoveDirectory(dir, target); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>"tokyo" from ".old-tokyo-&lt;32 hex digits&gt;", or null if the name isn't one of ours.</summary>
+    private static string? SlugOfPrevious(string folderName)
+    {
+        const int guidLength = 32;
+        var slugLength = folderName.Length - PreviousPrefix.Length - 1 - guidLength;
+        if (slugLength <= 0 || folderName[^(guidLength + 1)] != '-')
+            return null;
+        var slug = folderName.Substring(PreviousPrefix.Length, slugLength);
+        return AppPaths.IsValidSlug(slug) ? slug : null;
     }
 
     private static string UniqueFileName(string fileName, HashSet<string> used)

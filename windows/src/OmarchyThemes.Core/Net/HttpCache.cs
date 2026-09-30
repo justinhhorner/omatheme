@@ -60,7 +60,7 @@ public sealed class HttpCache
             if (response.StatusCode == HttpStatusCode.NotModified && cached is not null)
             {
                 var refreshed = cached with { FetchedAt = _time.GetUtcNow(), FromCache = true };
-                WriteMeta(uri, refreshed);
+                TryWrite(() => WriteMeta(uri, refreshed));
                 return refreshed;
             }
 
@@ -81,7 +81,7 @@ public sealed class HttpCache
                 IsStale: false,
                 ETag: response.Headers.ETag?.ToString(),
                 LastModified: response.Content.Headers.LastModified);
-            Store(uri, fresh);
+            TryWrite(() => Store(uri, fresh));
             return fresh;
         }
     }
@@ -97,10 +97,21 @@ public sealed class HttpCache
         {
             return new CachedResponse(File.ReadAllBytes(bodyPath), meta.FetchedAt, FromCache: true, IsStale: false, meta.ETag, ParseHttpDate(meta.LastModified));
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// A response that arrived is returned even if caching it fails (a file held by an antivirus scan,
+    /// a full disk): the next request just fetches it again.
+    /// </summary>
+    private static void TryWrite(Action write)
+    {
+        try { write(); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private void Store(Uri uri, CachedResponse response)

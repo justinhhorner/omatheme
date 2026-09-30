@@ -16,6 +16,9 @@ public sealed class ThemeDetailsService
     private readonly Dictionary<string, ThemeDetails> _cache = new();
     private readonly Dictionary<string, Task<ThemeDetails>> _inFlight = new();
 
+    /// <summary>Bumped by <see cref="Clear"/>, so lookups already running don't refill the cache.</summary>
+    private int _generation;
+
     public ThemeDetailsService(ThemeResolver resolver, ILogger<ThemeDetailsService>? log = null)
     {
         _resolver = resolver;
@@ -26,6 +29,17 @@ public sealed class ThemeDetailsService
     {
         lock (_gate)
             return _cache.GetValueOrDefault(slug);
+    }
+
+    /// <summary>Forgets every resolved theme (after Clear Cache), so the next lookup asks GitHub again.</summary>
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            _cache.Clear();
+            _inFlight.Clear();
+            _generation++;
+        }
     }
 
     /// <param name="force">Look the theme up again even if it's cached (joins a lookup already running).</param>
@@ -50,11 +64,17 @@ public sealed class ThemeDetailsService
 
     private async Task<ThemeDetails> ResolveSharedAsync(CatalogEntry entry)
     {
+        int generation;
+        lock (_gate)
+            generation = _generation;
         try
         {
             var details = await _resolver.ResolveAsync(entry).ConfigureAwait(false);
             lock (_gate)
-                _cache[entry.Slug] = details;
+            {
+                if (generation == _generation)
+                    _cache[entry.Slug] = details;
+            }
             if (details.PaletteError is { } paletteError)
                 _log.LogWarning("{Slug}: {PaletteError}", entry.Slug, paletteError);
             if (details.IsStale)
@@ -69,7 +89,11 @@ public sealed class ThemeDetailsService
         finally
         {
             lock (_gate)
-                _inFlight.Remove(entry.Slug);
+            {
+                // After a Clear, the slug may already have a newer lookup running.
+                if (generation == _generation)
+                    _inFlight.Remove(entry.Slug);
+            }
         }
     }
 }

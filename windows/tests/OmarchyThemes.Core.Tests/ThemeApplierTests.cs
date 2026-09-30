@@ -76,6 +76,28 @@ public sealed class ThemeApplierTests : IDisposable
     }
 
     [Fact]
+    public async Task Never_replaces_a_saved_desktop_it_cannot_read()
+    {
+        var paths = _dir.AppPaths;
+        Directory.CreateDirectory(paths.Root);
+        File.WriteAllText(paths.SnapshotFile, "{ not json");
+        var applier = new ThemeApplier(_backend, new FileSnapshotStore(paths));
+
+        var result = await applier.ApplyAsync(Request());
+
+        Assert.Empty(_backend.Calls);
+        Assert.Equal(StepOutcome.Failed, result.For(ApplyStep.SaveOriginal)!.Outcome);
+        Assert.Contains("can't be read", result.For(ApplyStep.SaveOriginal)!.Error);
+        Assert.Equal(StepOutcome.NotAttempted, result.For(ApplyStep.Wallpaper)!.Outcome);
+        Assert.Equal("{ not json", File.ReadAllText(paths.SnapshotFile));
+
+        // Settings still offers Restore, which then says why it can't.
+        Assert.True(applier.HasOriginalSnapshot);
+        await Assert.ThrowsAsync<SnapshotUnreadableException>(() => applier.RestoreOriginalAsync());
+        Assert.Empty(_backend.Calls);
+    }
+
+    [Fact]
     public async Task Respects_user_choices()
     {
         var result = await _applier.ApplyAsync(Request(new ApplyOptions { AppearanceMode = false, AccentColor = false, Fit = WallpaperFit.Span }));

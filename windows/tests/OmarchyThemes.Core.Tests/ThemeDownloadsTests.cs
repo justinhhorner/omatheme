@@ -148,6 +148,44 @@ public sealed class ThemeDownloadsTests : IDisposable
         Assert.Equal(2, (await patient).Wallpapers.Count);
     }
 
+    [Fact]
+    public async Task Clear_forgets_resolved_themes()
+    {
+        _http.Release();
+        var before = await _details.ResolveAsync(Entry);
+
+        _details.Clear();
+
+        Assert.Null(_details.TryGetCached(Entry.Slug));
+        Assert.NotSame(before, await _details.ResolveAsync(Entry));
+        Assert.NotNull(_details.TryGetCached(Entry.Slug));
+    }
+
+    [Fact]
+    public async Task A_lookup_running_during_Clear_does_not_refill_the_cache()
+    {
+        var running = _details.ResolveAsync(Entry);
+
+        _details.Clear();
+        _http.Release();
+        await running;
+
+        Assert.Null(_details.TryGetCached(Entry.Slug));
+    }
+
+    [Fact]
+    public async Task A_lookup_after_Clear_does_not_join_one_started_before()
+    {
+        var before = _details.ResolveAsync(Entry);
+        _details.Clear();
+        var after = _details.ResolveAsync(Entry);
+        _http.Release();
+
+        Assert.NotSame(await before, await after);
+        Assert.Equal(2, _http.CountFor(TreeUrl));
+        Assert.Same(await after, _details.TryGetCached(Entry.Slug));
+    }
+
     /// <summary>Answers from <see cref="Responses"/> (else 404), but only after <see cref="Release"/>.</summary>
     private sealed class GatedHttpHandler : HttpMessageHandler
     {

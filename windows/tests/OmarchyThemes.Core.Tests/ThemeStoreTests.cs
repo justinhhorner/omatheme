@@ -106,6 +106,45 @@ public sealed class ThemeStoreTests : IDisposable
         Assert.False(File.Exists(Path.Combine(installed.Directory, ThemeStore.WallpapersFolder, "old.png")));
     }
 
+    /// <summary>A store whose folder moves fail while <paramref name="fail"/> says so for the source folder.</summary>
+    private ThemeStore StoreWithMoves(Func<string, bool> fail) => new(_dir.AppPaths, _downloader, _time)
+    {
+        MoveDirectory = (from, to) =>
+        {
+            if (fail(Path.GetFileName(from)))
+                throw new IOException("The folder is in use.");
+            Directory.Move(from, to);
+        },
+    };
+
+    [Fact]
+    public async Task Reinstall_keeps_the_previous_copy_when_the_new_one_cannot_be_moved_in()
+    {
+        var failStaging = false;
+        var store = StoreWithMoves(name => failStaging && name.StartsWith(".staging-"));
+        await store.InstallAsync(Details("tokyo", "old.png"));
+
+        failStaging = true;
+        await Assert.ThrowsAsync<IOException>(() => store.InstallAsync(Details("tokyo", "new.png")));
+
+        var kept = store.Get("tokyo")!;
+        Assert.Equal(["old.png"], kept.Wallpapers);
+        Assert.True(File.Exists(kept.WallpaperPath("old.png")));
+        Assert.Equal([kept.Directory], Directory.GetDirectories(_dir.AppPaths.ThemesDir));
+    }
+
+    [Fact]
+    public async Task Reinstall_changes_nothing_when_the_installed_copy_is_in_use()
+    {
+        var store = StoreWithMoves(name => name == "tokyo");
+        await store.InstallAsync(Details("tokyo", "old.png"));
+
+        await Assert.ThrowsAsync<IOException>(() => store.InstallAsync(Details("tokyo", "new.png")));
+
+        Assert.Equal(["old.png"], store.Get("tokyo")!.Wallpapers);
+        Assert.Single(Directory.GetDirectories(_dir.AppPaths.ThemesDir));
+    }
+
     [Fact]
     public async Task Duplicate_wallpaper_names_are_made_unique()
     {
@@ -150,6 +189,40 @@ public sealed class ThemeStoreTests : IDisposable
         _store.CleanUpStaging();
 
         Assert.False(Directory.Exists(staging));
+    }
+
+    [Fact]
+    public async Task Remove_leaves_the_theme_whole_when_it_is_in_use()
+    {
+        var store = StoreWithMoves(name => name == "tokyo");
+        await store.InstallAsync(Details("tokyo", "1.png"));
+        var changed = 0;
+        store.Changed += (_, _) => changed++;
+
+        Assert.Throws<IOException>(() => store.Remove("tokyo"));
+
+        Assert.True(File.Exists(store.Get("tokyo")!.WallpaperPath("1.png")));
+        Assert.Equal(0, changed);
+    }
+
+    [Fact]
+    public async Task Clean_up_puts_back_a_previous_copy_a_failed_reinstall_left_aside()
+    {
+        await _store.InstallAsync(Details("tokyo", "1.png"));
+        await _store.InstallAsync(Details("kanagawa", "k.png"));
+        var themes = _dir.AppPaths.ThemesDir;
+        var guid = Guid.NewGuid().ToString("N");
+        // Tokyo is only aside; kanagawa's aside copy is outdated because it's installed.
+        Directory.Move(Path.Combine(themes, "tokyo"), Path.Combine(themes, $".old-tokyo-{guid}"));
+        Directory.CreateDirectory(Path.Combine(themes, $".old-kanagawa-{guid}"));
+        Directory.CreateDirectory(Path.Combine(themes, $".removed-nord-{guid}"));
+        Directory.CreateDirectory(Path.Combine(themes, ".old-not-ours"));
+
+        _store.CleanUpStaging();
+
+        Assert.Equal(["1.png"], _store.Get("tokyo")!.Wallpapers);
+        Assert.NotNull(_store.Get("kanagawa"));
+        Assert.Equal(["kanagawa", "tokyo"], Directory.GetDirectories(themes).Select(Path.GetFileName).Order());
     }
 
     [Fact]

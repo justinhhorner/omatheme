@@ -135,8 +135,7 @@ public sealed class ThemeDownloads
             _log.LogInformation("Download of {Slug} cancelled", entry.Slug);
             return new DownloadOutcome(null, null, Cancelled: true, Error: null);
         }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException
-                                      or GitHubException or ThemeResolveException or InvalidOperationException)
+        catch (Exception e) when (ExpectedErrors.IsExpected(e, operation.Token) || e is InvalidOperationException)
         {
             _log.LogError(e, "Download of {Slug} failed", entry.Slug);
             return new DownloadOutcome(null, null, Cancelled: false, Error: e);

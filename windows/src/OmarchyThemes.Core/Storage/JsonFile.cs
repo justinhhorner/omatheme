@@ -48,13 +48,32 @@ public static class JsonFile
     public static void WriteBytesAtomic(string path, byte[] bytes) =>
         ReplaceAtomic(path, stream => stream.Write(bytes));
 
+    /// <summary>
+    /// Each write gets its own temp file, so two writers of the same path (two requests for one URL
+    /// finishing together) don't collide; the last rename wins.
+    /// </summary>
     private static void ReplaceAtomic(string path, Action<Stream> write)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temp = path + ".tmp";
-        using (var stream = File.Create(temp))
-            write(stream);
-        File.Move(temp, path, overwrite: true);
+        var temp = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            using (var stream = File.Create(temp))
+                write(stream);
+            File.Move(temp, path, overwrite: true);
+        }
+        catch
+        {
+            TryDelete(temp);
+            throw;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 }
 

@@ -13,7 +13,8 @@ public enum SummaryKind
 /// <summary>Human-readable outcome of an Apply, for the UI's notification bar.</summary>
 public sealed record ApplySummary(SummaryKind Kind, string Title, string Message)
 {
-    public static ApplySummary Describe(ApplyResult result, string themeName, AppearanceMode mode)
+    /// <param name="accentNote">The backend's <see cref="IDesktopBackend.AccentColorNote"/>, added when the accent color changed.</param>
+    public static ApplySummary Describe(ApplyResult result, string themeName, AppearanceMode mode, string? accentNote = null)
     {
         if (result.For(ApplyStep.SaveOriginal) is { Outcome: StepOutcome.Failed, Error: var saveError })
             return new ApplySummary(SummaryKind.Error, "Theme not applied", saveError ?? "Couldn't save your current desktop.");
@@ -24,7 +25,6 @@ public sealed record ApplySummary(SummaryKind Kind, string Title, string Message
             .ToList();
         var failed = result.Steps.Where(s => s.Outcome == StepOutcome.Failed).ToList();
         var accentApplied = result.For(ApplyStep.AccentColor)?.Outcome == StepOutcome.Applied;
-        const string signOutNote = " Some parts of Windows may only pick up the new accent color after you sign out.";
 
         if (failed.Count == 0)
         {
@@ -33,7 +33,7 @@ public sealed record ApplySummary(SummaryKind Kind, string Title, string Message
             return new ApplySummary(
                 SummaryKind.Success,
                 $"{themeName} applied",
-                $"Updated {JoinList(applied)}." + (accentApplied ? signOutNote : ""));
+                $"Updated {JoinList(applied)}." + (accentApplied && accentNote is not null ? " " + accentNote : ""));
         }
 
         var problems = string.Join(" ", failed.Select(f => $"{Capitalize(Label(f.Step, mode))}: {f.Error}"));

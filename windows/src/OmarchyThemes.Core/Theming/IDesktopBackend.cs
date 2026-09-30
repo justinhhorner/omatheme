@@ -38,6 +38,12 @@ public interface IDesktopBackend
 {
     DesktopCapabilities Capabilities { get; }
 
+    /// <summary>
+    /// Added to the summary after the accent color is applied, for what the user should know about how
+    /// this OS picks it up (e.g. that some parts only update after signing out). Null for nothing.
+    /// </summary>
+    string? AccentColorNote => null;
+
     Task<DesktopSnapshot> CaptureAsync(CancellationToken ct = default);
 
     Task RestoreAsync(DesktopSnapshot snapshot, CancellationToken ct = default);

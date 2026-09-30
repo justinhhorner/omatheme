@@ -185,7 +185,8 @@ public sealed class ThemeResolverTests : IDisposable
         var api = _http.Requests.Single(r => r.RequestUri!.Host == "api.github.com");
         var raw = _http.Requests.Single(r => r.RequestUri!.Host == "raw.githubusercontent.com");
         Assert.Equal("Bearer secret", api.Headers.Authorization?.ToString());
-        Assert.NotEmpty(api.Headers.UserAgent);
+        Assert.Equal(AppInfo.UserAgent, api.Headers.UserAgent.ToString());
+        Assert.Matches(@"^OmarchyThemes/\d+\.\d+\.\d+ \(\+https://", AppInfo.UserAgent);
         Assert.Null(raw.Headers.Authorization);
     }
 

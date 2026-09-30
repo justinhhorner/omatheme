@@ -73,7 +73,7 @@ public sealed class CatalogService
             var tree = await _github.GetTreeAsync(DefaultThemes.Repo, ct).ConfigureAwait(false);
             return (DefaultThemes.FromTree(tree), tree.StaleReason);
         }
-        catch (Exception e) when (e is GitHubException or HttpRequestException || (e is TaskCanceledException && !ct.IsCancellationRequested))
+        catch (Exception e) when (ExpectedErrors.IsExpected(e, ct))
         {
             return ([], e);
         }

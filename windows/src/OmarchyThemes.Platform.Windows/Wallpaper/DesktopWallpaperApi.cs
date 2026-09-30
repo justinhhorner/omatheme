@@ -71,7 +71,7 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
                     wallpaper.SetBackgroundColor(ToColorRef(color));
                 wallpaper.SetPosition(ToPosition(fit));
                 wallpaper.SetWallpaper((string?)null!, path); // null monitor = all monitors
-                return true;
+                return;
             }
             catch (COMException)
             {
@@ -83,7 +83,6 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
             }
         }
         SetSystemParametersWallpaper(path);
-        return true;
     });
 
     public Task RestoreAsync(WallpaperState state) => Sta.RunAsync(() =>
@@ -113,7 +112,6 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
                     // The monitor was disconnected since the snapshot; skip it.
                 }
             }
-            return true;
         }
         finally
         {
@@ -201,6 +199,12 @@ public sealed class DesktopWallpaperApi : IWallpaperApi
 /// <summary>Runs a function on a fresh STA thread (the shell's COM objects expect one).</summary>
 internal static class Sta
 {
+    public static Task RunAsync(Action action) => RunAsync(() =>
+    {
+        action();
+        return true;
+    });
+
     public static Task<T> RunAsync<T>(Func<T> func)
     {
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);

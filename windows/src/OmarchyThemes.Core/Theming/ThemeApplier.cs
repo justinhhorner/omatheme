@@ -20,7 +20,17 @@ public sealed class ThemeApplier
 
     public DesktopCapabilities Capabilities => _backend.Capabilities;
 
-    public bool HasOriginalSnapshot => _snapshots.Load() is not null;
+    public string? AccentColorNote => _backend.AccentColorNote;
+
+    /// <summary>True if a desktop was saved, even one that can't be read (so Restore can say why).</summary>
+    public bool HasOriginalSnapshot
+    {
+        get
+        {
+            try { return _snapshots.Load() is not null; }
+            catch (SnapshotUnreadableException) { return true; }
+        }
+    }
 
     public async Task<ApplyResult> ApplyAsync(ApplyRequest request, IProgress<ApplyStep>? progress = null, CancellationToken ct = default)
     {
@@ -30,7 +40,18 @@ public sealed class ThemeApplier
             var results = new List<StepResult>();
 
             progress?.Report(ApplyStep.SaveOriginal);
-            if (_snapshots.Load() is null)
+            DesktopSnapshot? saved;
+            try
+            {
+                saved = _snapshots.Load();
+            }
+            catch (SnapshotUnreadableException e)
+            {
+                // Saving now would replace the user's original with a desktop we may already have themed.
+                return NothingChanged($"{e.Message} Nothing was changed, so it isn't overwritten. To save your current desktop instead, delete that file.");
+            }
+
+            if (saved is null)
             {
                 try
                 {
@@ -40,11 +61,7 @@ public sealed class ThemeApplier
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
                     // Without a snapshot we couldn't undo, so change nothing.
-                    results.Add(new StepResult(ApplyStep.SaveOriginal, StepOutcome.Failed,
-                        $"Couldn't save your current desktop, so nothing was changed. {e.Message}"));
-                    ApplyStep[] notAttempted = [ApplyStep.Wallpaper, ApplyStep.AppearanceMode, ApplyStep.AccentColor];
-                    results.AddRange(notAttempted.Select(s => new StepResult(s, StepOutcome.NotAttempted)));
-                    return new ApplyResult(results);
+                    return NothingChanged($"Couldn't save your current desktop, so nothing was changed. {e.Message}");
                 }
             }
 
@@ -74,6 +91,14 @@ public sealed class ThemeApplier
             _gate.Release();
         }
     }
+
+    private static ApplyResult NothingChanged(string error) => new(
+    [
+        new StepResult(ApplyStep.SaveOriginal, StepOutcome.Failed, error),
+        new StepResult(ApplyStep.Wallpaper, StepOutcome.NotAttempted),
+        new StepResult(ApplyStep.AppearanceMode, StepOutcome.NotAttempted),
+        new StepResult(ApplyStep.AccentColor, StepOutcome.NotAttempted),
+    ]);
 
     private async Task<StepResult> RunStepAsync(
         ApplyStep step, bool enabled, DesktopCapabilities capability, bool hasData,
