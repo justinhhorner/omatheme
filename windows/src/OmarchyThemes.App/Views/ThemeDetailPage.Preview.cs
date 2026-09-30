@@ -15,11 +15,6 @@ public sealed partial class ThemeDetailPage
     /// <summary>What had focus before the preview opened (the Preview button or a thumbnail).</summary>
     private Control? _previewReturnFocus;
 
-    partial void InitializePreview()
-    {
-        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
-    }
-
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ThemeDetailViewModel.PreviewItem))
@@ -69,13 +64,8 @@ public sealed partial class ThemeDetailPage
 
     private void PreviewButton_Click(object sender, RoutedEventArgs e) => OpenPreview(null, PreviewButton);
 
-    private void ExpandButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (Ui.ItemOf<WallpaperItemViewModel>(sender) is { } item)
-            OpenPreview(item, WallpaperGrid.ContainerFromItem(item) as Control);
-    }
-
-    private void PreviewMenu_Click(object sender, RoutedEventArgs e)
+    /// <summary>A thumbnail's hover button or its context menu item.</summary>
+    private void PreviewItem_Click(object sender, RoutedEventArgs e)
     {
         if (Ui.ItemOf<WallpaperItemViewModel>(sender) is { } item)
             OpenPreview(item, WallpaperGrid.ContainerFromItem(item) as Control);

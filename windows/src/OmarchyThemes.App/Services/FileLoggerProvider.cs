@@ -32,7 +32,10 @@ public sealed class FileLoggerProvider : ILoggerProvider
             .Append(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss.fff zzz"))
             .Append(" [").Append(level).Append("] ")
             .Append(category).Append(": ").Append(message);
-        if (exception is not null)
+        // Errors get the full stack trace, so a crash can be diagnosed from the log alone.
+        if (exception is not null && level >= LogLevel.Error)
+            line.AppendLine().Append(exception);
+        else if (exception is not null)
             line.AppendLine().Append("    ").Append(exception.GetType().FullName).Append(": ").Append(exception.Message);
         line.AppendLine();
 

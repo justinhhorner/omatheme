@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using OmarchyThemes.App.Helpers;
 using OmarchyThemes.App.ViewModels;
-using OmarchyThemes.Core.Theming;
 
 namespace OmarchyThemes.App.Views;
 
@@ -10,16 +10,14 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         InitializeComponent();
-        foreach (var fit in SettingsViewModel.FitOptions)
-            FitCombo.Items.Add(fit.ToString());
-        FitCombo.SelectedItem = ViewModel.Fit.ToString();
+        FitChoices.Fill(FitCombo, ViewModel.Fit);
     }
 
     public SettingsViewModel ViewModel { get; } = App.GetService<SettingsViewModel>();
 
     private void FitCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (Enum.TryParse<WallpaperFit>(FitCombo.SelectedItem as string, out var fit))
+        if (FitChoices.Selected(FitCombo) is { } fit)
             ViewModel.Fit = fit;
     }
 

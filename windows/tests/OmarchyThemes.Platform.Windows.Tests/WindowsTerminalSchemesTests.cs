@@ -17,7 +17,7 @@ public sealed class WindowsTerminalSchemesTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "omatheme-wt-tests", Guid.NewGuid().ToString("N"), "OmarchyThemes");
     private readonly WindowsTerminalSchemes _schemes;
 
-    public WindowsTerminalSchemesTests() => _schemes = new WindowsTerminalSchemes(_dir);
+    public WindowsTerminalSchemesTests() => _schemes = new WindowsTerminalSchemes(_dir, isAvailable: true);
 
     public void Dispose()
     {

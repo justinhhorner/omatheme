@@ -14,7 +14,8 @@ namespace OmarchyThemes.Platform.Windows;
 /// removing the file removes the scheme. Terminal reads fragments when it starts.
 /// See https://learn.microsoft.com/windows/terminal/json-fragment-extensions.
 /// </summary>
-public sealed class WindowsTerminalSchemes(string fragmentsDir)
+/// <param name="isAvailable">Whether Terminal is installed; by default, checked once here.</param>
+public sealed class WindowsTerminalSchemes(string fragmentsDir, bool? isAvailable = null) : ITerminalSchemes
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
@@ -24,8 +25,12 @@ public sealed class WindowsTerminalSchemes(string fragmentsDir)
 
     public string FragmentsDir { get; } = fragmentsDir;
 
+    public string DisplayName => "Windows Terminal";
+
+    public bool IsAvailable { get; } = isAvailable ?? IsTerminalInstalled();
+
     /// <summary>"Tokyo Night (Omarchy)": the suffix keeps it apart from Terminal's and the user's own schemes.</summary>
-    public static string SchemeName(string themeName) => $"{themeName} (Omarchy)";
+    public string SchemeName(string themeName) => $"{themeName} (Omarchy)";
 
     /// <summary>True when Windows Terminal (stable or Preview) is installed for this user.</summary>
     public static bool IsTerminalInstalled()
@@ -51,6 +56,13 @@ public sealed class WindowsTerminalSchemes(string fragmentsDir)
         if (!Directory.EnumerateFileSystemEntries(FragmentsDir).Any())
             Directory.Delete(FragmentsDir);
     }
+
+    public string AddedMessage(string schemeName) =>
+        $"In Windows Terminal, open Settings and choose “{schemeName}” as a profile's color scheme "
+        + "(Profiles › Defaults › Appearance applies it to all of them). If Terminal is open, restart it first.";
+
+    public string RemovedMessage(string schemeName) =>
+        $"“{schemeName}” is gone after Terminal restarts. A profile that used it goes back to Terminal's default colors.";
 
     internal string FilePath(string slug)
     {

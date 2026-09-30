@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using OmarchyThemes.App.ViewModels;
 using OmarchyThemes.Core.Catalog;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App.Views;
 
@@ -11,10 +12,8 @@ public sealed partial class ThemeDetailPage : Page
     public ThemeDetailPage()
     {
         InitializeComponent();
-        InitializePreview();
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
-
-    partial void InitializePreview();
 
     public ThemeDetailViewModel ViewModel { get; } = App.GetService<ThemeDetailViewModel>();
 
@@ -32,24 +31,13 @@ public sealed partial class ThemeDetailPage : Page
         if (ViewModel.Installed is not { } theme)
             return;
 
-        var options = await ApplyDialog.ShowAsync(XamlRoot, theme);
-        if (options is not null)
-            await ViewModel.ApplyAsync(options);
+        if (await ApplyDialog.ShowAsync(XamlRoot, theme, App.GetService<DesktopStore>()) is { } choice)
+            await ViewModel.ApplyAsync(choice.Options, choice.Remember);
     }
 
     private async void Remove_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Style = (Style)Application.Current.Resources["DefaultContentDialogStyle"],
-            Title = $"Remove {ViewModel.Name}?",
-            Content = "The downloaded wallpapers and colors will be deleted from this PC. Your current desktop won't change.",
-            PrimaryButtonText = "Remove",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-        };
-        if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+        if (await Dialogs.ConfirmRemoveAsync(XamlRoot, ViewModel.Name))
             ViewModel.Remove();
     }
 

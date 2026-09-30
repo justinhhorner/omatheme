@@ -10,10 +10,10 @@ public sealed partial class ShellPage : Page
 {
     private static readonly Dictionary<string, Type> Pages = new()
     {
-        ["Gallery"] = typeof(GalleryPage),
-        ["Downloaded"] = typeof(DownloadedPage),
-        ["About"] = typeof(AboutPage),
-        ["Settings"] = typeof(SettingsPage),
+        [Sections.Gallery] = typeof(GalleryPage),
+        [Sections.Downloaded] = typeof(DownloadedPage),
+        [Sections.About] = typeof(AboutPage),
+        [Sections.Settings] = typeof(SettingsPage),
     };
 
     private readonly NavigationService _navigation = App.GetService<NavigationService>();
@@ -28,10 +28,11 @@ public sealed partial class ShellPage : Page
 
     private TitleBar? TitleBar => App.Current.MainWindow?.TitleBar;
 
-    private void OnSectionRequested(object? sender, string tag) =>
-        NavView.SelectedItem = NavView.MenuItems.Concat(NavView.FooterMenuItems)
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(i => (string)i.Tag == tag);
+    private NavigationViewItem? FindNavItem(string tag) =>
+        NavView.MenuItems.Concat(NavView.FooterMenuItems).OfType<NavigationViewItem>()
+            .FirstOrDefault(i => i.Tag as string == tag);
+
+    private void OnSectionRequested(object? sender, string tag) => NavView.SelectedItem = FindNavItem(tag);
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -61,7 +62,7 @@ public sealed partial class ShellPage : Page
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        var tag = args.IsSettingsSelected ? "Settings" : (args.SelectedItem as NavigationViewItem)?.Tag as string;
+        var tag = args.IsSettingsSelected ? Sections.Settings : (args.SelectedItem as NavigationViewItem)?.Tag as string;
         if (tag is not null && Pages.TryGetValue(tag, out var pageType) && ContentFrame.CurrentSourcePageType != pageType)
             ContentFrame.Navigate(pageType, null, new EntranceNavigationTransitionInfo());
     }
@@ -81,9 +82,7 @@ public sealed partial class ShellPage : Page
         var tag = Pages.FirstOrDefault(p => p.Value == e.SourcePageType).Key;
         if (tag is null)
             return;
-        NavView.SelectedItem = NavView.MenuItems.Concat(NavView.FooterMenuItems)
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(i => (string)i.Tag == tag);
+        NavView.SelectedItem = FindNavItem(tag);
     }
 
     private void TitleBar_BackRequested(TitleBar sender, object args)

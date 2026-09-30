@@ -17,10 +17,10 @@
                     Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" />
 
                 <InfoBar
-                    IsOpen="{x:Bind ViewModel.IsResultOpen, Mode=TwoWay}"
-                    Message="{x:Bind ViewModel.ResultMessage, Mode=OneWay}"
-                    Severity="{x:Bind ViewModel.ResultSeverity, Mode=OneWay}"
-                    Title="{x:Bind ViewModel.ResultTitle, Mode=OneWay}" />
+                    IsOpen="{x:Bind ViewModel.Result.IsOpen, Mode=TwoWay}"
+                    Message="{x:Bind ViewModel.Result.Message, Mode=OneWay}"
+                    Severity="{x:Bind ViewModel.Result.Severity, Mode=OneWay}"
+                    Title="{x:Bind ViewModel.Result.Title, Mode=OneWay}" />
 
                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.Items}">
                     <ItemsRepeater.Layout>
@@ -54,13 +54,10 @@
                                                 Text="{x:Bind Name}"
                                                 TextTrimming="CharacterEllipsis" />
                                             <Border Style="{StaticResource AccentBadgeStyle}" Visibility="{x:Bind IsActive, Mode=OneWay}">
-                                                <TextBlock
-                                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                                    Text="Current" />
+                                                <TextBlock Style="{StaticResource AccentBadgeTextStyle}" Text="Current" />
                                             </Border>
                                         </StackPanel>
-                                        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{StaticResource CaptionTextBlockStyle}">
+                                        <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}">
                                             <Run Text="{x:Bind ModeText}" /><Run Text=" · " /><Run Text="{x:Bind Details}" />
                                         </TextBlock>
                                         <ItemsRepeater ItemsSource="{x:Bind Colors}">
@@ -90,9 +87,9 @@
                                         <Button
                                             AutomationProperties.Name="Set as desktop theme"
                                             Click="SetAsDesktop_Click"
-                                            Tag="{x:Bind}"
                                             IsEnabled="{x:Bind h:Ui.Not(IsApplying), Mode=OneWay}"
-                                            Style="{StaticResource AccentButtonStyle}">
+                                            Style="{StaticResource AccentButtonStyle}"
+                                            Tag="{x:Bind}">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <ProgressRing
                                                     Width="16"
@@ -134,7 +131,6 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- Empty state -->
         <Grid Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
             <TextBlock
                 Margin="{StaticResource PageMargin}"

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using OmarchyThemes.Core.Colors;
+using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Theming;
 
 namespace OmarchyThemes.App.Helpers;
@@ -55,14 +56,18 @@ public static class Ui
         _ => InfoBarSeverity.Informational,
     };
 
-    public static string Ago(DateTimeOffset when, DateTimeOffset now)
+    /// <summary>"Light" or "Dark"; the other wording ("Light theme", "Switch Windows to light mode") builds on it.</summary>
+    public static string ModeName(AppearanceMode mode) => mode == AppearanceMode.Light ? "Light" : "Dark";
+
+    /// <summary>The index of <paramref name="item"/> in <paramref name="list"/> (by reference), or -1.</summary>
+    public static int IndexOf<T>(IReadOnlyList<T> list, T item) where T : class
     {
-        var age = now - when;
-        return age.TotalMinutes < 1 ? "just now"
-            : age.TotalHours < 1 ? $"{(int)age.TotalMinutes} min ago"
-            : age.TotalDays < 1 ? $"{(int)age.TotalHours} h ago"
-            : age.TotalDays < 2 ? "yesterday"
-            : when.ToLocalTime().ToString("d MMM");
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (ReferenceEquals(list[i], item))
+                return i;
+        }
+        return -1;
     }
 
     public static string FormatBytes(long bytes) => bytes switch

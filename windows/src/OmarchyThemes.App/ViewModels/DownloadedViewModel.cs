@@ -2,37 +2,32 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml.Controls;
-using OmarchyThemes.App.Helpers;
 using OmarchyThemes.App.Services;
-using OmarchyThemes.Core.Catalog;
-using OmarchyThemes.Core.Storage;
 using OmarchyThemes.Core.Theming;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App.ViewModels;
 
 /// <summary>Downloaded themes, with one-click apply using the saved Apply defaults.</summary>
 public sealed partial class DownloadedViewModel : ObservableObject
 {
-    private readonly ThemeStore _store;
-    private readonly ApplyService _apply;
-    private readonly SettingsStore _settings;
+    private readonly ThemeLibrary _library;
+    private readonly DesktopStore _desktop;
+    private readonly CatalogStore _catalog;
     private readonly NavigationService _navigation;
-    private readonly GalleryViewModel _gallery;
     private readonly DispatcherQueue _dispatcher;
 
-    public DownloadedViewModel(ThemeStore store, ApplyService apply, SettingsStore settings, NavigationService navigation, GalleryViewModel gallery)
+    public DownloadedViewModel(ThemeLibrary library, DesktopStore desktop, CatalogStore catalog, NavigationService navigation)
     {
-        _store = store;
-        _apply = apply;
-        _settings = settings;
+        _library = library;
+        _desktop = desktop;
+        _catalog = catalog;
         _navigation = navigation;
-        _gallery = gallery;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
 
-        _store.Changed += (_, _) => _dispatcher.TryEnqueue(Reload);
-        _apply.ActiveThemeChanged += (_, _) => _dispatcher.TryEnqueue(UpdateActive);
-        Reload();
+        _library.Changed += (_, _) => _dispatcher.TryEnqueue(ShowThemes);
+        _desktop.Changed += (_, _) => UpdateState();
+        ShowThemes();
     }
 
     public ObservableCollection<InstalledThemeViewModel> Items { get; } = [];
@@ -43,24 +38,21 @@ public sealed partial class DownloadedViewModel : ObservableObject
     [ObservableProperty]
     public partial string Subtitle { get; set; } = "";
 
-    [ObservableProperty]
-    public partial bool IsResultOpen { get; set; }
+    public ResultBar Result { get; } = new();
 
-    [ObservableProperty]
-    public partial string ResultTitle { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string ResultMessage { get; set; } = "";
-
-    [ObservableProperty]
-    public partial InfoBarSeverity ResultSeverity { get; set; }
-
+    /// <summary>Reads the downloaded themes from disk again (e.g. when the page is shown).</summary>
     public void Reload()
     {
-        var active = _apply.ActiveSlug;
+        _library.Reload();
+        ShowThemes();
+    }
+
+    private void ShowThemes()
+    {
         Items.Clear();
-        foreach (var theme in _store.List())
-            Items.Add(new InstalledThemeViewModel(theme, theme.Slug == active));
+        foreach (var theme in _library.Installed)
+            Items.Add(new InstalledThemeViewModel(theme, isActive: false));
+        UpdateState();
         IsEmpty = Items.Count == 0;
         Subtitle = Items.Count switch
         {
@@ -70,46 +62,40 @@ public sealed partial class DownloadedViewModel : ObservableObject
         };
     }
 
-    private void UpdateActive()
+    private void UpdateState()
     {
-        var active = _apply.ActiveSlug;
         foreach (var item in Items)
-            item.IsActive = item.Theme.Slug == active;
+        {
+            item.IsActive = item.Theme.Slug == _desktop.ActiveSlug;
+            item.IsApplying = item.Theme.Slug == _desktop.ApplyingSlug;
+        }
     }
 
     /// <summary>One-click apply with the defaults from Settings.</summary>
     [RelayCommand]
-    private Task SetAsDesktopAsync(InstalledThemeViewModel item) =>
-        ApplyAsync(item, _settings.Load().ApplyDefaults);
-
-    public async Task ApplyAsync(InstalledThemeViewModel item, ApplyOptions options)
+    private async Task SetAsDesktopAsync(InstalledThemeViewModel item)
     {
-        if (Items.Any(i => i.IsApplying))
-            return;
-        item.IsApplying = true;
-        IsResultOpen = false;
-        try
-        {
-            var settings = _settings.Load();
-            var wallpaper = settings.LastAppliedSlug == item.Theme.Slug ? settings.LastAppliedWallpaper : null;
-            var summary = await _apply.ApplyAsync(item.Theme, wallpaper, options);
-            ResultSeverity = Ui.Severity(summary.Kind);
-            ResultTitle = summary.Title;
-            ResultMessage = summary.Message;
-            IsResultOpen = true;
-        }
-        finally
-        {
-            item.IsApplying = false;
-        }
+        Result.Close();
+        Result.Show(await _desktop.ApplyWithDefaultsAsync(item.Theme));
     }
 
-    public void Remove(InstalledThemeViewModel item) => _store.Remove(item.Theme.Slug);
+    /// <summary>Apply with the Apply dialog's choices.</summary>
+    public async Task ApplyAsync(InstalledThemeViewModel item, ApplyOptions options, bool rememberOptions)
+    {
+        Result.Close();
+        Result.Show(await _desktop.ApplyAsync(item.Theme, _desktop.PreferredWallpaper(item.Theme), options, rememberOptions));
+    }
 
-    public void Open(InstalledThemeViewModel item) =>
-        _navigation.OpenTheme(_gallery.Find(item.Theme.Slug)
-            ?? new CatalogEntry(item.Theme.Slug, item.Theme.Name, item.Theme.RepoUrl, ScreenshotUrl: null));
+    public void Remove(InstalledThemeViewModel item)
+    {
+        var banner = _library.Remove(item.Theme);
+        // Removal is visible in the list; only a failure needs words.
+        if (banner.Kind == SummaryKind.Error)
+            Result.Show(banner);
+    }
+
+    public void Open(InstalledThemeViewModel item) => _navigation.OpenTheme(_catalog.EntryFor(item.Theme));
 
     [RelayCommand]
-    private void BrowseThemes() => _navigation.ShowSection("Gallery");
+    private void BrowseThemes() => _navigation.ShowSection(Sections.Gallery);
 }

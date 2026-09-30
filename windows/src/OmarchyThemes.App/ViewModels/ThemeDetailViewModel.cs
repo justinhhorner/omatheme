@@ -4,13 +4,14 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using OmarchyThemes.App.Helpers;
 using OmarchyThemes.App.Services;
+using OmarchyThemes.Core;
 using OmarchyThemes.Core.Catalog;
 using OmarchyThemes.Core.GitHub;
 using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Storage;
 using OmarchyThemes.Core.Themes;
 using OmarchyThemes.Core.Theming;
-using OmarchyThemes.Platform.Windows;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App.ViewModels;
 
@@ -20,27 +21,19 @@ namespace OmarchyThemes.App.ViewModels;
 /// </summary>
 public sealed partial class ThemeDetailViewModel : ObservableObject
 {
-    private readonly ThemeDetailsService _details;
-    private readonly ThemeStore _store;
-    private readonly ApplyService _apply;
-    private readonly SettingsStore _settings;
+    private readonly ThemeLibrary _library;
+    private readonly DesktopStore _desktop;
+    private readonly TerminalStore _terminal;
     private readonly NavigationService _navigation;
-    private readonly ThemeDownloads _downloads;
-    private readonly WindowsTerminalSchemes _terminal;
     private DownloadOperation? _download;
     private ImageSource? _screenshot;
 
-    public ThemeDetailViewModel(
-        ThemeDetailsService details, ThemeStore store, ApplyService apply, SettingsStore settings,
-        NavigationService navigation, ThemeDownloads downloads, WindowsTerminalSchemes terminal)
+    public ThemeDetailViewModel(ThemeLibrary library, DesktopStore desktop, TerminalStore terminal, NavigationService navigation)
     {
-        _details = details;
-        _store = store;
-        _apply = apply;
-        _settings = settings;
-        _navigation = navigation;
-        _downloads = downloads;
+        _library = library;
+        _desktop = desktop;
         _terminal = terminal;
+        _navigation = navigation;
     }
 
     public CatalogEntry Entry { get; private set; } = null!;
@@ -106,21 +99,11 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanApply))]
     public partial bool IsApplying { get; set; }
 
-    [ObservableProperty]
-    public partial bool IsResultOpen { get; set; }
-
-    [ObservableProperty]
-    public partial string ResultTitle { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string ResultMessage { get; set; } = "";
-
-    [ObservableProperty]
-    public partial InfoBarSeverity ResultSeverity { get; set; }
+    public ResultBar Result { get; } = new();
 
     public bool IsInstalled => Installed is not null;
 
-    public bool IsActive => IsInstalled && _apply.ActiveSlug == Entry.Slug;
+    public bool IsActive => IsInstalled && _desktop.ActiveSlug == Entry.Slug;
 
     public bool CanApply => !IsDownloading && !IsApplying && (IsInstalled || Details?.CanApply == true);
 
@@ -128,7 +111,7 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
 
     public AppearanceMode Mode => Installed?.Mode ?? Details?.Mode ?? AppearanceMode.Dark;
 
-    public string ModeText => Installed is null && Details is null ? "" : Mode == AppearanceMode.Light ? "Light theme" : "Dark theme";
+    public string ModeText => Installed is null && Details is null ? "" : $"{Ui.ModeName(Mode)} theme";
 
     public bool ShowPalette => !IsResolving && KeyColors.Count > 0;
 
@@ -142,21 +125,20 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
     {
         Entry = entry;
         OnPropertyChanged(string.Empty);
-
-        // A download started earlier (then navigated away from) is still running: show its live progress.
         RefreshTerminalState();
 
-        if (_downloads.Get(entry.Slug) is { } running)
+        // A download started earlier (then navigated away from) is still running: show its live progress.
+        if (_library.RunningDownload(entry.Slug) is { } running)
             _ = ObserveDownloadAsync(running, selectedIndex: 0);
 
-        Installed = _store.Get(entry.Slug);
+        Installed = _library.Get(entry.Slug);
         if (Installed is not null)
         {
             ShowInstalled(Installed);
             return; // Everything needed is on disk; no network.
         }
 
-        if (_details.TryGetCached(entry.Slug) is { } cached)
+        if (_library.CachedDetails(entry.Slug) is { } cached)
         {
             ShowDetails(cached);
             return;
@@ -171,13 +153,11 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
         ResolveError = null;
         try
         {
-            ShowDetails(await _details.ResolveAsync(Entry));
+            ShowDetails(await _library.ResolveAsync(Entry));
         }
-        catch (Exception e) when (e is GitHubException or ThemeResolveException or HttpRequestException or TaskCanceledException)
+        catch (Exception e) when (ExpectedErrors.IsExpected(e))
         {
-            ResolveError = e is HttpRequestException or TaskCanceledException
-                ? "Couldn't reach GitHub. Check your internet connection and try again."
-                : e.Message;
+            ResolveError = ExpectedErrors.Describe(e);
         }
         finally
         {
@@ -199,11 +179,12 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
             ? "GitHub couldn't be reached" + (details.StaleReason is GitHubRateLimitException rl ? $" ({rl.Message})" : "") + ", so this is a cached copy."
             : null;
         if (!details.CanApply)
-            ShowResult(InfoBarSeverity.Warning, "Can't apply this theme",
+            Result.Show(InfoBarSeverity.Warning, "Can't apply this theme",
                 "It has no wallpapers and no readable color palette in a format this app understands.");
     }
 
-    private void ShowInstalled(InstalledTheme theme, int selectedIndex = -1)
+    /// <param name="selectedIndex">The wallpaper to select; by default the one last applied, else the first.</param>
+    private void ShowInstalled(InstalledTheme theme, int? selectedIndex = null)
     {
         KeyColors = ColorChipViewModel.KeyColors(theme.Palette);
         Swatches = ColorChipViewModel.Swatches(theme.Palette);
@@ -212,14 +193,10 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
             .Select(f => new WallpaperItemViewModel(f, theme.WallpaperPath(f), f))
             .ToList();
 
-        if (selectedIndex < 0)
-        {
-            var settings = _settings.Load();
-            selectedIndex = settings.LastAppliedSlug == theme.Slug && settings.LastAppliedWallpaper is { } last
-                ? Math.Max(0, Wallpapers.ToList().FindIndex(w => w.LocalFile == last))
-                : 0;
-        }
-        SelectedWallpaper = Wallpapers.ElementAtOrDefault(selectedIndex) ?? Wallpapers.FirstOrDefault();
+        var preferred = _desktop.PreferredWallpaper(theme);
+        SelectedWallpaper = (selectedIndex is { } index ? Wallpapers.ElementAtOrDefault(index) : null)
+            ?? Wallpapers.FirstOrDefault(w => w.LocalFile == preferred)
+            ?? Wallpapers.FirstOrDefault();
     }
 
     private bool CanDownload() => !IsDownloading;
@@ -231,10 +208,9 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanDownload))]
     public Task<bool> DownloadAsync()
     {
-        IsResultOpen = false;
-        var selectedIndex = SelectedWallpaper is null ? 0 : Wallpapers.ToList().IndexOf(SelectedWallpaper);
-        // Re-resolve when re-downloading so updates to the theme are picked up.
-        return ObserveDownloadAsync(_downloads.Start(Entry, refresh: IsInstalled), selectedIndex);
+        Result.Close();
+        var selectedIndex = SelectedWallpaper is null ? 0 : Ui.IndexOf(Wallpapers, SelectedWallpaper);
+        return ObserveDownloadAsync(_library.Download(Entry), selectedIndex);
     }
 
     private async Task<bool> ObserveDownloadAsync(DownloadOperation download, int selectedIndex)
@@ -256,15 +232,7 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
                 ShowInstalled(installed, selectedIndex);
                 return true;
             }
-            if (outcome.Cancelled)
-                ShowResult(InfoBarSeverity.Informational, "Download cancelled", "Nothing was saved.");
-            else
-                ShowResult(InfoBarSeverity.Error, "Download failed", outcome.Error switch
-                {
-                    TaskCanceledException => "The connection timed out. Try again.",
-                    { } error => error.Message,
-                    null => "Something went wrong.",
-                });
+            Result.Show(ThemeLibrary.DescribeFailedDownload(outcome));
             return false;
         }
         finally
@@ -298,16 +266,16 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
     [RelayCommand]
     private void CancelDownload() => _download?.Cancel();
 
-    public async Task ApplyAsync(ApplyOptions options)
+    /// <summary>Apply with the Apply dialog's choices.</summary>
+    public async Task ApplyAsync(ApplyOptions options, bool rememberOptions)
     {
         if (Installed is null)
             return;
         IsApplying = true;
-        IsResultOpen = false;
+        Result.Close();
         try
         {
-            var summary = await _apply.ApplyAsync(Installed, SelectedWallpaper?.LocalFile, options);
-            ShowResult(Ui.Severity(summary.Kind), summary.Title, summary.Message);
+            Result.Show(await _desktop.ApplyAsync(Installed, SelectedWallpaper?.LocalFile, options, rememberOptions));
             OnPropertyChanged(nameof(IsActive));
         }
         finally
@@ -320,20 +288,15 @@ public sealed partial class ThemeDetailViewModel : ObservableObject
     {
         if (Installed is null)
             return;
-        _store.Remove(Installed.Slug);
-        Installed = null;
-        if (Details is not null)
-            ShowDetails(Details);
-        else
-            _navigation.GoBack();
-        ShowResult(InfoBarSeverity.Informational, "Download removed", $"{Name} was removed from this PC.");
-    }
-
-    private void ShowResult(InfoBarSeverity severity, string title, string message)
-    {
-        ResultSeverity = severity;
-        ResultTitle = title;
-        ResultMessage = message;
-        IsResultOpen = true;
+        var banner = _library.Remove(Installed);
+        if (banner.Kind != SummaryKind.Error)
+        {
+            Installed = null;
+            if (Details is not null)
+                ShowDetails(Details);
+            else
+                _navigation.GoBack();
+        }
+        Result.Show(banner);
     }
 }

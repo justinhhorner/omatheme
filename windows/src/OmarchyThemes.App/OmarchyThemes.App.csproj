@@ -43,6 +43,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OmarchyThemes.Core\OmarchyThemes.Core.csproj" />
     <ProjectReference Include="..\OmarchyThemes.Platform.Windows\OmarchyThemes.Platform.Windows.csproj" />
+    <ProjectReference Include="..\OmarchyThemes.Stores\OmarchyThemes.Stores.csproj" />
   </ItemGroup>
 
 </Project>

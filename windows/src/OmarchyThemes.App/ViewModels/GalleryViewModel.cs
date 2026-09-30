@@ -1,48 +1,37 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
-using OmarchyThemes.App.Helpers;
 using OmarchyThemes.App.Services;
 using OmarchyThemes.Core.Catalog;
-using OmarchyThemes.Core.GitHub;
-using OmarchyThemes.Core.Storage;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App.ViewModels;
 
 /// <summary>
-/// The theme catalog. Shows the cached copy instantly, then refreshes from omarchy.org in the
-/// background when the cache is old. Refresh always re-fetches.
+/// The theme catalog (<see cref="CatalogStore"/>) as cards: the cached copy straight away, refreshed
+/// in the background when it's old. Refresh always re-fetches.
 /// </summary>
 public sealed partial class GalleryViewModel : ObservableObject
 {
-    private static readonly TimeSpan AutoRefreshAfter = TimeSpan.FromHours(12);
-
-    private readonly CatalogService _catalog;
-    private readonly ThemeStore _store;
-    private readonly ApplyService _apply;
-    private readonly SettingsStore _settings;
+    private readonly CatalogStore _catalog;
+    private readonly ThemeLibrary _library;
+    private readonly DesktopStore _desktop;
     private readonly NavigationService _navigation;
     private readonly DispatcherQueue _dispatcher;
-    private readonly ILogger<GalleryViewModel> _log;
-    private List<ThemeCardViewModel> _all = [];
-    private DateTimeOffset? _fetchedAt;
-    private bool _loaded;
+    private IReadOnlyList<CatalogEntry>? _shownEntries;
+    private Dictionary<string, ThemeCardViewModel> _cards = [];
 
-    public GalleryViewModel(
-        CatalogService catalog, ThemeStore store, ApplyService apply, SettingsStore settings,
-        NavigationService navigation, ILogger<GalleryViewModel> log)
+    public GalleryViewModel(CatalogStore catalog, ThemeLibrary library, DesktopStore desktop, NavigationService navigation)
     {
-        _settings = settings;
-        _log = log;
         _catalog = catalog;
-        _store = store;
-        _apply = apply;
+        _library = library;
+        _desktop = desktop;
         _navigation = navigation;
         _dispatcher = DispatcherQueue.GetForCurrentThread();
 
-        _store.Changed += (_, _) => _dispatcher.TryEnqueue(UpdateBadges);
-        _apply.ActiveThemeChanged += (_, _) => _dispatcher.TryEnqueue(UpdateBadges);
+        _catalog.Changed += (_, _) => ShowCatalog();
+        _library.Changed += (_, _) => _dispatcher.TryEnqueue(UpdateBadges);
+        _desktop.Changed += (_, _) => UpdateBadges();
     }
 
     [ObservableProperty]
@@ -73,25 +62,6 @@ public sealed partial class GalleryViewModel : ObservableObject
 
     /// <summary>Hidden while searching, so results come first.</summary>
     public bool ShowCurrentTheme => CurrentTheme is not null && string.IsNullOrWhiteSpace(SearchText);
-
-    public void OpenCurrentTheme()
-    {
-        if (CurrentTheme?.Theme is not { } theme)
-            return;
-        _navigation.OpenTheme(Find(theme.Slug) ?? new CatalogEntry(theme.Slug, theme.Name, theme.RepoUrl, ScreenshotUrl: null));
-    }
-
-    private void UpdateCurrentTheme()
-    {
-        var settings = _settings.Load();
-        var theme = settings.LastAppliedSlug is { } slug ? _store.Get(slug) : null;
-        if (theme is null)
-            CurrentTheme = null;
-        else if (CurrentTheme?.Theme is { } shown && shown.Slug == theme.Slug && shown.DownloadedAt == theme.DownloadedAt)
-            CurrentTheme.MarkCurrent(settings.LastAppliedWallpaper); // same theme: just move the "current" mark
-        else
-            CurrentTheme = new CurrentThemeViewModel(theme, settings.LastAppliedWallpaper, _apply, _settings);
-    }
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = "";
@@ -140,126 +110,81 @@ public sealed partial class GalleryViewModel : ObservableObject
 
     partial void OnShowDownloadedOnlyChanged(bool value) => ApplyFilter();
 
-    public async Task EnsureLoadedAsync()
+    public Task EnsureLoadedAsync()
     {
-        if (_loaded)
-            return;
-        _loaded = true;
-
         // Local only, so it shows even when the catalog can't load.
         UpdateCurrentTheme();
-
-        if (_catalog.LoadCached() is { } cached)
-        {
-            Show(cached);
-            // Refresh when the cache is old, or has no default themes yet (e.g. they failed to load).
-            if (cached.Entries.Any(e => e.IsDefaultTheme) && DateTimeOffset.Now - cached.FetchedAt < AutoRefreshAfter)
-                return;
-        }
-        else
-        {
-            IsLoading = true;
-        }
-        await RefreshAsync();
+        return _catalog.LoadIfNeededAsync();
     }
 
     private bool CanRefresh() => !IsRefreshing;
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
-    private async Task RefreshAsync()
-    {
-        IsRefreshing = true;
-        ErrorMessage = null;
-        try
-        {
-            var catalog = await _catalog.RefreshAsync();
-            Show(catalog);
-            Notice = catalog.IsStale
-                ? $"Couldn't reach omarchy.org, so this is the catalog from {Ui.Ago(catalog.FetchedAt, DateTimeOffset.Now)}."
-                : null;
-            DefaultThemesNotice = catalog.DefaultThemesError is { } defaultsError && !catalog.Entries.Any(e => e.IsDefaultTheme)
-                ? DescribeDefaultThemesError(defaultsError)
-                : null;
-
-            if (catalog.IsStale)
-                _log.LogWarning(catalog.StaleReason, "Catalog refresh failed; showing the copy from {FetchedAt}", catalog.FetchedAt);
-            if (catalog.DefaultThemesError is { } error)
-                _log.LogError(error, "Default themes failed to load");
-            _log.LogInformation("Catalog: {Default} default + {Community} community themes",
-                catalog.Entries.Count(e => e.IsDefaultTheme), catalog.Entries.Count(e => !e.IsDefaultTheme));
-        }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or CatalogFormatException)
-        {
-            _log.LogError(e, "Catalog refresh failed");
-            var message = e is CatalogFormatException
-                ? e.Message
-                : "Couldn't load themes from omarchy.org. Check your internet connection and try again.";
-            if (HasThemes)
-                Notice = message;
-            else
-                ErrorMessage = message;
-        }
-        finally
-        {
-            IsRefreshing = false;
-            IsLoading = false;
-        }
-    }
-
-    internal static string DescribeDefaultThemesError(Exception error)
-    {
-        var reason = error switch
-        {
-            GitHubRateLimitException or GitHubNotFoundException => error.Message,
-            HttpRequestException or TaskCanceledException => "GitHub couldn't be reached.",
-            _ => error.Message,
-        };
-        return $"{reason} The themes that ship with Omarchy are listed from its GitHub repository; the community themes below still work.";
-    }
+    private Task RefreshAsync() => _catalog.RefreshAsync();
 
     public void Open(ThemeCardViewModel card) => _navigation.OpenTheme(card.Entry);
 
-    public CatalogEntry? Find(string slug) => _all.FirstOrDefault(c => c.Entry.Slug == slug)?.Entry;
-
-    private void Show(ThemeCatalog catalog)
+    public void OpenCurrentTheme()
     {
-        var installed = _store.List().ToDictionary(t => t.Slug);
-        _all = catalog.Entries
-            .Select(e => new ThemeCardViewModel(e, installed.GetValueOrDefault(e.Slug)?.ScreenshotPath))
-            .ToList();
-        _fetchedAt = catalog.FetchedAt;
-        HasThemes = _all.Count > 0;
-        UpdateBadges();
-        ApplyFilter();
+        if (CurrentTheme?.Theme is { } theme)
+            _navigation.OpenTheme(_catalog.EntryFor(theme));
+    }
+
+    private void ShowCatalog()
+    {
+        IsLoading = _catalog.IsLoading;
+        IsRefreshing = _catalog.IsRefreshing;
+        ErrorMessage = _catalog.Error;
+        Notice = _catalog.Notice;
+        DefaultThemesNotice = _catalog.DefaultThemesNotice;
+
+        if (!ReferenceEquals(_catalog.Entries, _shownEntries))
+        {
+            _shownEntries = _catalog.Entries;
+            var screenshots = _library.Installed.ToDictionary(t => t.Slug, t => t.ScreenshotPath);
+            _cards = _catalog.Entries.ToDictionary(
+                e => e.Slug, e => new ThemeCardViewModel(e, screenshots.GetValueOrDefault(e.Slug)));
+            HasThemes = _cards.Count > 0;
+            UpdateBadges();
+        }
     }
 
     private void UpdateBadges()
     {
-        var installed = _store.List().Select(t => t.Slug).ToHashSet();
-        var active = _apply.ActiveSlug;
-        foreach (var card in _all)
+        var installed = _library.InstalledSlugs;
+        var active = _desktop.ActiveSlug;
+        foreach (var card in _cards.Values)
         {
             card.IsDownloaded = installed.Contains(card.Entry.Slug);
             card.IsActive = card.Entry.Slug == active;
         }
-        if (ShowDownloadedOnly)
-            ApplyFilter();
+        ApplyFilter(installed);
         UpdateCurrentTheme();
     }
 
-    private void ApplyFilter()
+    private void UpdateCurrentTheme()
     {
-        var query = SearchText.Trim();
-        VisibleThemes = _all
-            .Where(c => query.Length == 0
-                || c.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-                || c.RepoDisplay.Contains(query, StringComparison.OrdinalIgnoreCase))
-            .Where(c => !ShowDownloadedOnly || c.IsDownloaded)
+        var theme = _desktop.CurrentTheme;
+        if (theme is null)
+            CurrentTheme = null;
+        else if (CurrentTheme?.Theme is { } shown && shown.Slug == theme.Slug && shown.DownloadedAt == theme.DownloadedAt)
+            CurrentTheme.Refresh(); // same theme: just move the "current" mark
+        else
+            CurrentTheme = new CurrentThemeViewModel(theme, _desktop);
+    }
+
+    private void ApplyFilter() => ApplyFilter(_library.InstalledSlugs);
+
+    private void ApplyFilter(IReadOnlySet<string> installed)
+    {
+        var entries = _shownEntries ?? [];
+        VisibleThemes = CatalogStore.Filter(entries, SearchText, ShowDownloadedOnly, installed)
+            .Select(e => _cards[e.Slug])
             .ToList();
         DefaultThemes = VisibleThemes.Where(c => c.Entry.IsDefaultTheme).ToList();
         CommunityThemes = VisibleThemes.Where(c => !c.Entry.IsDefaultTheme).ToList();
 
-        var count = VisibleThemes.Count == _all.Count ? $"{_all.Count} themes" : $"{VisibleThemes.Count} of {_all.Count} themes";
-        Subtitle = _fetchedAt is { } at ? $"{count} · updated {Ui.Ago(at, DateTimeOffset.Now)}" : count;
+        var count = VisibleThemes.Count == entries.Count ? $"{entries.Count} themes" : $"{VisibleThemes.Count} of {entries.Count} themes";
+        Subtitle = _catalog.FetchedAt is { } at ? $"{count} · updated {TimeText.Ago(at, _catalog.Now)}" : count;
     }
 }

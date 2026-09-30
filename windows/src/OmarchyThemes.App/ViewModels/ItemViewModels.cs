@@ -35,6 +35,10 @@ public sealed class ColorChipViewModel(string name, RgbColor color)
 
     public static IReadOnlyList<ColorChipViewModel> Swatches(Palette? palette) =>
         palette?.Swatches.Select(s => new ColorChipViewModel(s.Name, s.Color)).ToList() ?? [];
+
+    /// <summary>A compact row for lists: background, foreground, accent, then the first 8 swatches.</summary>
+    public static IReadOnlyList<ColorChipViewModel> Summary(Palette? palette) =>
+        KeyColors(palette).Take(3).Concat(Swatches(palette).Take(8)).ToList();
 }
 
 /// <summary>A wallpaper thumbnail: a remote raw URL before download, a local file after.</summary>
@@ -51,8 +55,9 @@ public sealed class WallpaperItemViewModel(string fileName, string source, strin
     private ImageSource? _thumbnail;
     public ImageSource? Thumbnail => _thumbnail ??= Ui.Image(Source, 360);
 
-    /// <summary>For the large preview: full resolution, downsampled to at most ~2560 px wide.</summary>
     private ImageSource? _preview;
+
+    /// <summary>For the large preview: full resolution, downsampled to at most ~2560 px wide.</summary>
     public ImageSource? Preview => _preview ??= Ui.Image(Source, 2560);
 }
 
@@ -97,17 +102,18 @@ public sealed partial class InstalledThemeViewModel : ObservableObject
     {
         Theme = theme;
         IsActive = isActive;
-        Colors = ColorChipViewModel.KeyColors(theme.Palette).Take(3)
-            .Concat(ColorChipViewModel.Swatches(theme.Palette).Take(8))
-            .ToList();
+        Colors = ColorChipViewModel.Summary(theme.Palette);
     }
 
     public InstalledTheme Theme { get; }
     public string Name => Theme.Name;
-    public string ModeText => Theme.Mode == AppearanceMode.Light ? "Light" : "Dark";
+    public string ModeText => Ui.ModeName(Theme.Mode);
     public IReadOnlyList<ColorChipViewModel> Colors { get; }
 
-    public string Details => Theme.Wallpapers.Count switch
+    public string Details => WallpaperCount(Theme.Wallpapers.Count);
+
+    /// <summary>"No wallpaper", "1 wallpaper", "3 wallpapers".</summary>
+    public static string WallpaperCount(int count) => count switch
     {
         0 => "No wallpaper",
         1 => "1 wallpaper",

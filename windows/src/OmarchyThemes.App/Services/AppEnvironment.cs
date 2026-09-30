@@ -11,14 +11,17 @@ namespace OmarchyThemes.App.Services;
 /// </list>
 /// Use both whenever the UI is driven by a script.
 /// </summary>
-public sealed record AppEnvironment(bool IsDryRun, string? DataDir)
+/// <param name="GitHubToken"><c>GITHUB_TOKEN</c>, which raises GitHub's API limit (60 requests an hour without one).</param>
+public sealed record AppEnvironment(bool IsDryRun, string? DataDir, string? GitHubToken = null)
 {
     public static AppEnvironment FromProcess()
     {
         var dataDir = Environment.GetEnvironmentVariable("OMARCHY_THEMES_DATA_DIR");
+        var token = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
         return new AppEnvironment(
             Environment.GetEnvironmentVariable("OMARCHY_THEMES_DRY_RUN") == "1",
-            string.IsNullOrWhiteSpace(dataDir) ? null : dataDir);
+            string.IsNullOrWhiteSpace(dataDir) ? null : dataDir,
+            string.IsNullOrWhiteSpace(token) ? null : token);
     }
 
     public AppPaths Paths => DataDir is null ? AppPaths.Default() : new AppPaths(DataDir);

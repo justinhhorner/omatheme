@@ -1,11 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using OmarchyThemes.App.Helpers;
-using OmarchyThemes.App.Services;
-using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Storage;
-using OmarchyThemes.Core.Theming;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App.ViewModels;
 
@@ -33,42 +30,29 @@ public sealed partial class CurrentWallpaperViewModel(string fileName, string pa
 
 /// <summary>
 /// The theme on the desktop, highlighted above the gallery. Clicking one of its wallpapers sets it
-/// straight away: wallpaper only (with the saved fit and the theme's fill color), since the theme's
-/// light/dark mode and accent are already applied.
+/// straight away (see <see cref="DesktopStore.SetCurrentWallpaperAsync"/>).
 /// </summary>
 public sealed partial class CurrentThemeViewModel : ObservableObject
 {
-    private readonly ApplyService _apply;
-    private readonly SettingsStore _settings;
+    private readonly DesktopStore _desktop;
     private ImageSource? _screenshot;
 
-    public CurrentThemeViewModel(InstalledTheme theme, string? currentWallpaper, ApplyService apply, SettingsStore settings)
+    public CurrentThemeViewModel(InstalledTheme theme, DesktopStore desktop)
     {
         Theme = theme;
-        _apply = apply;
-        _settings = settings;
+        _desktop = desktop;
         Wallpapers = theme.Wallpapers
             .Select(f => new CurrentWallpaperViewModel(f, theme.WallpaperPath(f)))
             .ToList();
-        Colors = ColorChipViewModel.KeyColors(theme.Palette).Take(3)
-            .Concat(ColorChipViewModel.Swatches(theme.Palette).Take(8))
-            .ToList();
-        MarkCurrent(currentWallpaper);
+        Colors = ColorChipViewModel.Summary(theme.Palette);
+        Refresh();
     }
 
     public InstalledTheme Theme { get; }
 
     public string Name => Theme.Name;
 
-    public string Details
-    {
-        get
-        {
-            var mode = Theme.Mode == AppearanceMode.Light ? "Light theme" : "Dark theme";
-            var count = Theme.Wallpapers.Count == 1 ? "1 wallpaper" : $"{Theme.Wallpapers.Count} wallpapers";
-            return $"{mode} · {count}";
-        }
-    }
+    public string Details => $"{Ui.ModeName(Theme.Mode)} theme · {InstalledThemeViewModel.WallpaperCount(Theme.Wallpapers.Count)}";
 
     public IReadOnlyList<ColorChipViewModel> Colors { get; }
 
@@ -80,58 +64,22 @@ public sealed partial class CurrentThemeViewModel : ObservableObject
     public ImageSource? Screenshot => _screenshot ??=
         Ui.Image(Theme.ScreenshotPath ?? Theme.Wallpapers.Select(Theme.WallpaperPath).FirstOrDefault(), 480);
 
-    [ObservableProperty]
-    public partial bool IsBusy { get; set; }
+    public ResultBar Result { get; } = new();
 
-    [ObservableProperty]
-    public partial bool IsResultOpen { get; set; }
-
-    [ObservableProperty]
-    public partial string ResultTitle { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string ResultMessage { get; set; } = "";
-
-    [ObservableProperty]
-    public partial InfoBarSeverity ResultSeverity { get; set; }
-
-    public void MarkCurrent(string? fileName)
+    /// <summary>Moves the "current" mark and the spinner to match the desktop.</summary>
+    public void Refresh()
     {
         foreach (var wallpaper in Wallpapers)
-            wallpaper.IsCurrent = wallpaper.FileName == fileName;
+        {
+            wallpaper.IsCurrent = wallpaper.FileName == _desktop.CurrentWallpaper;
+            wallpaper.IsApplying = wallpaper.FileName == _desktop.SettingWallpaper;
+        }
     }
 
     public async Task SetWallpaperAsync(CurrentWallpaperViewModel wallpaper)
     {
-        if (IsBusy || wallpaper.IsCurrent)
-            return;
-
-        IsBusy = true;
-        wallpaper.IsApplying = true;
-        IsResultOpen = false;
-        try
-        {
-            var options = new ApplyOptions
-            {
-                Wallpaper = true,
-                AppearanceMode = false,
-                AccentColor = false,
-                Fit = _settings.Load().ApplyDefaults.Fit,
-            };
-            var summary = await _apply.ApplyAsync(Theme, wallpaper.FileName, options);
-            // Success shows as the "current" mark moving; only problems need words.
-            if (summary.Kind != SummaryKind.Success)
-            {
-                ResultSeverity = Ui.Severity(summary.Kind);
-                ResultTitle = summary.Kind == SummaryKind.Error ? "Couldn't change the wallpaper" : summary.Title;
-                ResultMessage = summary.Message;
-                IsResultOpen = true;
-            }
-        }
-        finally
-        {
-            wallpaper.IsApplying = false;
-            IsBusy = false;
-        }
+        Result.Close();
+        if (await _desktop.SetCurrentWallpaperAsync(wallpaper.FileName) is { } problem)
+            Result.Show(problem);
     }
 }

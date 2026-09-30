@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -5,37 +6,37 @@ using Microsoft.UI.Xaml.Controls;
 using OmarchyThemes.App.Helpers;
 using OmarchyThemes.App.Services;
 using OmarchyThemes.Core;
-using OmarchyThemes.Core.Storage;
 using OmarchyThemes.Core.Theming;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App.ViewModels;
 
 public sealed partial class SettingsViewModel : ObservableObject
 {
-    public static readonly IReadOnlyList<WallpaperFit> FitOptions = Enum.GetValues<WallpaperFit>();
-
-    private readonly SettingsStore _settings;
-    private readonly ApplyService _apply;
+    private readonly Preferences _preferences;
+    private readonly DesktopStore _desktop;
+    private readonly ThemeLibrary _library;
     private readonly AppPaths _paths;
-    private readonly ThemeStore _store;
+    private readonly AppEnvironment _environment;
     private bool _loading;
 
-    public SettingsViewModel(SettingsStore settings, ApplyService apply, AppPaths paths, ThemeStore store)
+    public SettingsViewModel(Preferences preferences, DesktopStore desktop, ThemeLibrary library, AppPaths paths, AppEnvironment environment)
     {
-        _settings = settings;
-        _apply = apply;
+        _preferences = preferences;
+        _desktop = desktop;
+        _library = library;
         _paths = paths;
-        _store = store;
+        _environment = environment;
 
         _loading = true;
-        var defaults = settings.Load().ApplyDefaults;
+        var defaults = preferences.Settings.ApplyDefaults;
         ApplyWallpaper = defaults.Wallpaper;
         ApplyMode = defaults.AppearanceMode;
         ApplyAccent = defaults.AccentColor;
         Fit = defaults.Fit;
         _loading = false;
 
-        HasOriginalSnapshot = apply.HasOriginalSnapshot;
+        HasOriginalSnapshot = desktop.HasOriginalSnapshot;
         RefreshStorage();
     }
 
@@ -61,23 +62,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string CacheText { get; set; } = "";
 
-    [ObservableProperty]
-    public partial bool IsResultOpen { get; set; }
-
-    [ObservableProperty]
-    public partial string ResultTitle { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string ResultMessage { get; set; } = "";
-
-    [ObservableProperty]
-    public partial InfoBarSeverity ResultSeverity { get; set; }
+    public ResultBar Result { get; } = new();
 
     public string RestoreDescription => HasOriginalSnapshot
         ? "Puts back the wallpaper, light/dark mode and accent color you had before applying your first theme."
         : "Your desktop is saved automatically the first time you apply a theme. Nothing has been changed yet.";
 
-    public string GitHubText => StorageInfo.GitHubToken() is null
+    public string GitHubText => _environment.GitHubToken is null
         ? "Browsing themes uses GitHub's public API (60 theme lookups per hour). Set a GITHUB_TOKEN environment variable to raise the limit."
         : "Using the token from the GITHUB_TOKEN environment variable for GitHub requests.";
 
@@ -91,7 +82,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         if (_loading)
             return;
-        _settings.Update(s => s with
+        _preferences.Update(s => s with
         {
             ApplyDefaults = new ApplyOptions
             {
@@ -106,53 +97,34 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(HasOriginalSnapshot))]
     private async Task RestoreOriginalAsync()
     {
-        try
-        {
-            var restored = await _apply.RestoreOriginalAsync();
-            ShowResult(restored ? InfoBarSeverity.Success : InfoBarSeverity.Informational,
-                restored ? "Original desktop restored" : "Nothing to restore",
-                restored ? "Your previous wallpaper and colors are back." : "No saved desktop was found.");
-        }
-        catch (Exception e)
-        {
-            ShowResult(InfoBarSeverity.Error, "Couldn't restore your desktop", e.Message);
-        }
-        HasOriginalSnapshot = _apply.HasOriginalSnapshot;
+        Result.Show(await _desktop.RestoreOriginalAsync());
+        HasOriginalSnapshot = _desktop.HasOriginalSnapshot;
     }
 
     [RelayCommand]
-    private void OpenDataFolder() =>
-        Process.Start(new ProcessStartInfo { FileName = _paths.Root, UseShellExecute = true });
+    private void OpenDataFolder()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = _paths.Root, UseShellExecute = true });
+        }
+        catch (Win32Exception e)
+        {
+            Result.Show(InfoBarSeverity.Error, "Couldn't open the data folder", e.Message);
+        }
+    }
 
     [RelayCommand]
     private void ClearCache()
     {
-        try
-        {
-            if (Directory.Exists(_paths.CacheDir))
-                Directory.Delete(_paths.CacheDir, recursive: true);
-            Directory.CreateDirectory(_paths.CacheDir);
-            ShowResult(InfoBarSeverity.Success, "Cache cleared", "The catalog and theme details will be downloaded again when needed. Downloaded themes were kept.");
-        }
-        catch (IOException e)
-        {
-            ShowResult(InfoBarSeverity.Error, "Couldn't clear the cache", e.Message);
-        }
+        Result.Show(_library.ClearCache());
         RefreshStorage();
     }
 
     private void RefreshStorage()
     {
-        var count = _store.List().Count;
+        var count = _library.Installed.Count;
         StorageText = $"{count} downloaded {(count == 1 ? "theme" : "themes")} · {Ui.FormatBytes(StorageInfo.DirectorySize(_paths.ThemesDir))}";
         CacheText = $"Catalog and GitHub responses · {Ui.FormatBytes(StorageInfo.DirectorySize(_paths.CacheDir))}";
-    }
-
-    private void ShowResult(InfoBarSeverity severity, string title, string message)
-    {
-        ResultSeverity = severity;
-        ResultTitle = title;
-        ResultMessage = message;
-        IsResultOpen = true;
     }
 }

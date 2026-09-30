@@ -46,8 +46,7 @@
                                 Text="{x:Bind Name}"
                                 TextTrimming="CharacterEllipsis" />
                             <TextBlock
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Style="{StaticResource SecondaryCaptionTextStyle}"
                                 Text="{x:Bind RepoDisplay}"
                                 TextTrimming="CharacterEllipsis" />
                         </StackPanel>
@@ -57,10 +56,7 @@
                             Orientation="Horizontal"
                             Spacing="6">
                             <Border Style="{StaticResource AccentBadgeStyle}" Visibility="{x:Bind IsActive, Mode=OneWay}">
-                                <TextBlock
-                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                    Text="Current" />
+                                <TextBlock Style="{StaticResource AccentBadgeTextStyle}" Text="Current" />
                             </Border>
                             <FontIcon
                                 FontSize="14"
@@ -104,7 +100,6 @@
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
 
-        <!-- Header: title + subtitle, search / filter / refresh -->
         <Grid Margin="0,0,0,12">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -236,16 +231,10 @@
                                                     Text="{x:Bind ViewModel.CurrentTheme.Name, Mode=OneWay}"
                                                     TextTrimming="CharacterEllipsis" />
                                                 <Border Style="{StaticResource AccentBadgeStyle}">
-                                                    <TextBlock
-                                                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                                        Style="{StaticResource CaptionTextBlockStyle}"
-                                                        Text="On your desktop" />
+                                                    <TextBlock Style="{StaticResource AccentBadgeTextStyle}" Text="On your desktop" />
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                Style="{StaticResource CaptionTextBlockStyle}"
-                                                Text="{x:Bind ViewModel.CurrentTheme.Details, Mode=OneWay}" />
+                                            <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind ViewModel.CurrentTheme.Details, Mode=OneWay}" />
                                             <ItemsRepeater ItemsSource="{x:Bind ViewModel.CurrentTheme.Colors, Mode=OneWay}">
                                                 <ItemsRepeater.Layout>
                                                     <StackLayout Orientation="Horizontal" Spacing="4" />
@@ -272,16 +261,13 @@
                                     </Grid>
 
                                     <InfoBar
-                                        IsOpen="{x:Bind ViewModel.CurrentTheme.IsResultOpen, Mode=TwoWay}"
-                                        Message="{x:Bind ViewModel.CurrentTheme.ResultMessage, Mode=OneWay}"
-                                        Severity="{x:Bind ViewModel.CurrentTheme.ResultSeverity, Mode=OneWay}"
-                                        Title="{x:Bind ViewModel.CurrentTheme.ResultTitle, Mode=OneWay}" />
+                                        IsOpen="{x:Bind ViewModel.CurrentTheme.Result.IsOpen, Mode=TwoWay}"
+                                        Message="{x:Bind ViewModel.CurrentTheme.Result.Message, Mode=OneWay}"
+                                        Severity="{x:Bind ViewModel.CurrentTheme.Result.Severity, Mode=OneWay}"
+                                        Title="{x:Bind ViewModel.CurrentTheme.Result.Title, Mode=OneWay}" />
 
                                     <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.CurrentTheme.HasWallpapers, Mode=OneWay}">
-                                        <TextBlock
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            Style="{StaticResource CaptionTextBlockStyle}"
-                                            Text="Click a wallpaper to put it on your desktop." />
+                                        <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="Click a wallpaper to put it on your desktop." />
                                         <ScrollViewer
                                             HorizontalScrollBarVisibility="Auto"
                                             HorizontalScrollMode="Enabled"
@@ -404,7 +390,6 @@
                     Text="Loading themes…" />
             </StackPanel>
 
-            <!-- Error with nothing to show -->
             <StackPanel Style="{StaticResource EmptyStatePanelStyle}" Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}">
                 <FontIcon Glyph="&#xE774;" Style="{StaticResource EmptyStateIconStyle}" />
                 <TextBlock
@@ -422,7 +407,6 @@
                     Style="{StaticResource AccentButtonStyle}" />
             </StackPanel>
 
-            <!-- Search / filter matched nothing -->
             <StackPanel Style="{StaticResource EmptyStatePanelStyle}" Visibility="{x:Bind ViewModel.IsEmptyResult, Mode=OneWay}">
                 <FontIcon Glyph="&#xE721;" Style="{StaticResource EmptyStateIconStyle}" />
                 <TextBlock

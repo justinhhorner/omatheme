@@ -7,10 +7,12 @@ using OmarchyThemes.Core;
 using OmarchyThemes.Core.Catalog;
 using OmarchyThemes.Core.GitHub;
 using OmarchyThemes.Core.Net;
+using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Storage;
 using OmarchyThemes.Core.Themes;
 using OmarchyThemes.Core.Theming;
 using OmarchyThemes.Platform.Windows;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App;
 
@@ -20,6 +22,11 @@ public partial class App : Application
     {
         InitializeComponent();
         Services = ConfigureServices();
+
+        // Anything not handled where it happened still leaves a stack trace in the log.
+        var log = GetService<ILogger<App>>();
+        UnhandledException += (_, e) => log.LogCritical(e.Exception, "Unhandled exception");
+        TaskScheduler.UnobservedTaskException += (_, e) => log.LogCritical(e.Exception, "Unobserved task exception");
     }
 
     public static new App Current => (App)Application.Current;
@@ -42,28 +49,39 @@ public partial class App : Application
             .SetMinimumLevel(LogLevel.Information)
             .AddDebug()
             .AddProvider(new FileLoggerProvider(paths.LogsDir)));
+
+        // Network
         services.AddSingleton(_ => new HttpCache(HttpClients.CreateApi(), paths.CacheDir));
+        services.AddSingleton(sp => new GitHubClient(sp.GetRequiredService<HttpCache>(), environment.GitHubToken));
         services.AddSingleton(sp => new CatalogService(sp.GetRequiredService<HttpCache>(), github: sp.GetRequiredService<GitHubClient>()));
-        services.AddSingleton(sp => new GitHubClient(sp.GetRequiredService<HttpCache>(), StorageInfo.GitHubToken()));
+
+        // Themes
         services.AddSingleton<ThemeResolver>();
         services.AddSingleton<ThemeDetailsService>();
-        services.AddSingleton<ThemeDownloads>();
         services.AddSingleton(_ => new ThemeStore(paths, new HttpDownloader(HttpClients.CreateDownloads())));
+        services.AddSingleton<ThemeDownloads>();
         services.AddSingleton(_ => new SettingsStore(paths));
 
-        // Nothing touches the desktop until the user explicitly applies a theme.
+        // Desktop and terminal. Nothing touches the desktop until the user explicitly applies a theme.
         services.AddSingleton<IDesktopBackend>(_ => environment.IsDryRun
             ? new DryRunDesktopBackend()
             : WindowsDesktopBackend.CreateDefault(Path.Combine(paths.Root, "original-desktop")));
         services.AddSingleton<ISnapshotStore>(_ => new FileSnapshotStore(paths));
+        services.AddSingleton<ThemeApplier>();
         // Test switches keep Windows Terminal's real fragments folder untouched too.
-        services.AddSingleton(_ => new WindowsTerminalSchemes(environment.IsDryRun || environment.DataDir is not null
+        services.AddSingleton<ITerminalSchemes>(_ => new WindowsTerminalSchemes(environment.IsDryRun || environment.DataDir is not null
             ? Path.Combine(paths.Root, "windows-terminal-fragments")
             : WindowsTerminalSchemes.DefaultFragmentsDir));
-        services.AddSingleton<ThemeApplier>();
-        services.AddSingleton<ApplyService>();
-        services.AddSingleton<NavigationService>();
 
+        // Stores (the app's logic)
+        services.AddSingleton<Preferences>();
+        services.AddSingleton<CatalogStore>();
+        services.AddSingleton<ThemeLibrary>();
+        services.AddSingleton<DesktopStore>();
+        services.AddSingleton<TerminalStore>();
+
+        // UI
+        services.AddSingleton<NavigationService>();
         services.AddSingleton<GalleryViewModel>();
         services.AddSingleton<DownloadedViewModel>();
         services.AddTransient<ThemeDetailViewModel>();
@@ -75,13 +93,13 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         GetService<AppPaths>().EnsureCreated();
-        GetService<ThemeStore>().CleanUpStaging();
+        GetService<ThemeLibrary>(); // tidies up interrupted downloads
 
         var environment = GetService<AppEnvironment>();
         GetService<ILogger<App>>().LogInformation("Started {Version}; data folder {Root}{DryRun}",
             typeof(App).Assembly.GetName().Version, GetService<AppPaths>().Root, environment.IsDryRun ? "; DRY RUN" : "");
 
-        var showWelcome = !GetService<SettingsStore>().Load().WelcomeSeen;
+        var showWelcome = !GetService<Preferences>().Settings.WelcomeSeen;
         MainWindow = new MainWindow(showWelcome);
         MainWindow.Activate();
     }

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using OmarchyThemes.App.Helpers;
 
 namespace OmarchyThemes.App.ViewModels;
 
@@ -20,7 +21,7 @@ public sealed partial class ThemeDetailViewModel
 
     public string PreviewUseText => PreviewIsSelected ? "Selected" : "Use this wallpaper";
 
-    private int PreviewIndex => PreviewItem is null ? -1 : Wallpapers.ToList().IndexOf(PreviewItem);
+    private int PreviewIndex => PreviewItem is null ? -1 : Ui.IndexOf(Wallpapers, PreviewItem);
 
     // The list is rebuilt when a download swaps remote images for local files; the preview would be stale.
     partial void OnWallpapersChanged(IReadOnlyList<WallpaperItemViewModel> value) => IsPreviewOpen = false;

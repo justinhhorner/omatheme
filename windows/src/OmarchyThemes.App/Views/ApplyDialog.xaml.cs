@@ -1,12 +1,15 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using OmarchyThemes.App.Helpers;
-using OmarchyThemes.App.Services;
-using OmarchyThemes.Core.Palettes;
 using OmarchyThemes.Core.Storage;
 using OmarchyThemes.Core.Theming;
+using OmarchyThemes.Stores;
 
 namespace OmarchyThemes.App.Views;
+
+/// <summary>What the user chose in the Apply dialog.</summary>
+/// <param name="Remember">"Use these choices for one-click apply" was checked.</param>
+public sealed record ApplyChoice(ApplyOptions Options, bool Remember);
 
 /// <summary>Per-aspect Apply choices. Options the OS or the theme can't provide are shown disabled.</summary>
 public sealed partial class ApplyDialog : ContentDialog
@@ -18,16 +21,14 @@ public sealed partial class ApplyDialog : ContentDialog
 
         var unavailable = new List<string>();
 
-        foreach (var fit in Enum.GetValues<WallpaperFit>())
-            FitCombo.Items.Add(fit.ToString());
-        FitCombo.SelectedItem = defaults.Fit.ToString();
+        FitChoices.Fill(FitCombo, defaults.Fit);
         var canWallpaper = capabilities.HasFlag(DesktopCapabilities.Wallpaper) && theme.Wallpapers.Count > 0;
         WallpaperCheck.IsEnabled = canWallpaper;
         WallpaperCheck.IsChecked = canWallpaper && defaults.Wallpaper;
         if (theme.Wallpapers.Count == 0)
             unavailable.Add("This theme has no wallpaper.");
 
-        ModeCheck.Content = theme.Mode == AppearanceMode.Light ? "Switch Windows to light mode" : "Switch Windows to dark mode";
+        ModeCheck.Content = $"Switch Windows to {Ui.ModeName(theme.Mode).ToLowerInvariant()} mode";
         var canMode = capabilities.HasFlag(DesktopCapabilities.AppearanceMode);
         ModeCheck.IsEnabled = canMode;
         ModeCheck.IsChecked = canMode && defaults.AppearanceMode;
@@ -77,25 +78,18 @@ public sealed partial class ApplyDialog : ContentDialog
         Wallpaper = WallpaperCheck.IsChecked == true,
         AppearanceMode = ModeCheck.IsChecked == true,
         AccentColor = AccentCheck.IsChecked == true,
-        Fit = Enum.TryParse<WallpaperFit>(FitCombo.SelectedItem as string, out var fit) ? fit : WallpaperFit.Fill,
+        Fit = FitChoices.Selected(FitCombo) ?? WallpaperFit.Fill,
     };
 
-    /// <summary>Shows the dialog; returns the chosen options, or null if cancelled.</summary>
-    public static async Task<ApplyOptions?> ShowAsync(XamlRoot root, InstalledTheme theme)
+    /// <summary>Shows the dialog, starting from the one-click defaults; null if cancelled.</summary>
+    public static async Task<ApplyChoice?> ShowAsync(XamlRoot root, InstalledTheme theme, DesktopStore desktop)
     {
-        var settings = App.GetService<SettingsStore>();
-        var apply = App.GetService<ApplyService>();
-        var dialog = new ApplyDialog(theme, settings.Load().ApplyDefaults, apply.Capabilities, apply.HasOriginalSnapshot)
+        var dialog = new ApplyDialog(theme, desktop.ApplyDefaults, desktop.Capabilities, desktop.HasOriginalSnapshot)
         {
             XamlRoot = root,
         };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-            return null;
-
-        var options = dialog.Options;
-        if (dialog.RememberCheck.IsChecked == true)
-            settings.Update(s => s with { ApplyDefaults = options });
-        return options;
+        return await dialog.ShowAsync() == ContentDialogResult.Primary
+            ? new ApplyChoice(dialog.Options, dialog.RememberCheck.IsChecked == true)
+            : null;
     }
 }
