@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The app's logic (what the view models used to decide): catalog refresh rules, applying and
+       restoring, downloads and removal, terminal colors, and the messages for each outcome.
+       Platform-neutral, built on Core, so it's unit-tested (and builds on the Mac). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>OmarchyThemes.Stores</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OmarchyThemes.Core\OmarchyThemes.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OmarchyThemes.Stores.Tests" />
+  </ItemGroup>
+
+</Project>

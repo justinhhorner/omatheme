@@ -114,13 +114,17 @@ internal sealed class FakeDesktopBackend : IDesktopBackend
 
     public DesktopSnapshot? Restored { get; private set; }
 
-    private Task Record(string call)
+    /// <summary>When set, every call waits for it (to overlap two applies).</summary>
+    public TaskCompletionSource? Gate { get; set; }
+
+    private async Task Record(string call)
     {
         Calls.Add(call);
+        if (Gate is { } gate)
+            await gate.Task;
         var name = call.Split(':')[0];
         if (FailOn.Contains(name))
             throw new InvalidOperationException($"{name} exploded");
-        return Task.CompletedTask;
     }
 
     public async Task<DesktopSnapshot> CaptureAsync(CancellationToken ct = default)

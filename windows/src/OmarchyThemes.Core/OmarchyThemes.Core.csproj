@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="OmarchyThemes.Core.Tests" />
+    <InternalsVisibleTo Include="OmarchyThemes.Stores.Tests" />
   </ItemGroup>
 
 </Project>
