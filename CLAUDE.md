@@ -26,11 +26,13 @@ As of Sep 27, 2026 (later) the macOS app also caught up with Windows: no wallpap
 section with the `lastAppliedWallpaper` fix, terminal colors (see below) and a macOS README screenshot.
 `docs/windows-to-macos.md` was deleted once empty.
 
-**Pending for Windows (read this first on a Windows machine):** `docs/windows-review.md`, a code review done
-on the Mac. Start with its section 1: Core was refactored and tested there, but the Platform.Windows edits
-only compiled and the WinUI app couldn't be built, so build the solution and run the tests first. Then its
-bugs (unlogged crashes on disk errors, cache temp-file collisions, a non-atomic reinstall, a corrupt
-snapshot being overwritten), the App cleanups, and moving view-model logic into tested stores as on macOS.
+As of Sep 29, 2026 the Windows code review (done on the Mac) is finished, and its file was deleted. Windows
+now has tested stores like macOS (`windows/src/OmarchyThemes.Stores`), and the review's bug fixes are in.
+
+**Pending for macOS (read this first on the Mac):** `docs/windows-to-macos.md`: an unreadable
+`original-desktop.json` being overwritten (the same bug fixed on Windows), dropping
+`OMARCHY_THEMES_GITHUB_TOKEN` (the user chose `GITHUB_TOKEN` only), one User-Agent from the version, and
+the Apply sheet saving settings from the view.
 
 ## Decisions already made (don't reopen)
 
@@ -119,6 +121,9 @@ Port behaviour, not code. The equivalents on Windows:
 | Apply orchestration: snapshot-before-first-apply, per-step gating, partial failure | `…/Core/Theming/ThemeApplier.cs` |
 | User-facing apply messages | `…/Core/Theming/ApplySummary.cs` |
 | OS backend | `windows/src/OmarchyThemes.Platform.Windows/WindowsDesktopBackend.cs` |
+| Which errors are reported rather than crashing, and their wording | `…/Core/ExpectedErrors.cs` |
+| The app's logic (catalog refresh, library, apply/restore, terminal), as on macOS | `windows/src/OmarchyThemes.Stores/` (tests: `windows/tests/OmarchyThemes.Stores.Tests/`) |
+| Terminal colors (Windows Terminal fragments) | `…/Core/Palettes/ITerminalSchemes.cs`, `…/Platform.Windows/WindowsTerminalSchemes.cs` |
 
 **Test fixtures** live in `fixtures/` at the repo root (catalog HTML in both layouts, both `colors.toml`
 shapes, alacritty). They're shared by the Windows and Swift tests and hand-written to mirror real data. The
@@ -223,6 +228,10 @@ Gotchas found:
   the script check for the badge (a UIA element with that name) before pressing them, and read the real
   desktop state (read-only) before and after to prove nothing changed. Give buttons whose content isn't plain
   text an `AutomationProperties.Name`; this was a real accessibility bug found that way.
+  In PowerShell 7, `Add-Type` can't compile C# that uses System.Drawing (missing `System.Private.Windows.*`
+  references): keep only the P/Invoke (`PrintWindow`, `GetWindowRect`) in C# and do the `Bitmap`/`Graphics`
+  work in PowerShell. Selecting the already-selected nav item doesn't leave a theme page; invoke the title
+  bar's **Back** button instead.
 - **macOS** (to set up): build with `xcodebuild`, launch the `.app`, and capture the window with
   `screencapture -l <windowID>` (needs Screen Recording permission for the terminal). Use XCUITest or the
   Accessibility API for scripted navigation. The same rule applies: open dialogs and cancel, never apply.
@@ -232,7 +241,7 @@ Gotchas found:
 ```bash
 cd windows
 dotnet build OmarchyThemes.sln
-dotnet test          # Core (161) + Windows backend (31) tests; live checks skipped
+dotnet test          # Core (183) + Windows backend (32) + Stores (32) tests; live checks skipped
 dotnet run --project src/OmarchyThemes.App
 ```
 
@@ -254,4 +263,8 @@ Windows gotchas found:
   through the UI; `ThemeDownloadsTests` covers it deterministically with gated fakes.
 - xUnit runs tests under a synchronization context, so `DownloadOperation` posts `PropertyChanged`; tests read
   `Status` (set synchronously) at gated points rather than collecting intermediate events.
-- Logs: `%LOCALAPPDATA%\OmarchyThemes\logs\omarchy-themes-yyyyMMdd.log` (or the test data folder).
+- Logs: `%LOCALAPPDATA%\OmarchyThemes\logs\omarchy-themes-yyyyMMdd.log` (or the test data folder). Errors
+  (including unhandled exceptions, logged before the app exits) include the stack trace.
+- The stores raise `Changed` on the thread that did the work: `ThemeLibrary` on a download's thread-pool
+  thread, the others on the caller's (the UI thread). View models marshal library events through their
+  `DispatcherQueue`.

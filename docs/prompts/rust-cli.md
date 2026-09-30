@@ -38,7 +38,7 @@ data-sharing decision below), as the macOS app did. Then build it.
   `OMARCHY_THEMES_DATA_DIR=<path>` (another data folder). Use both whenever you run the CLI's apply,
   wallpaper or restore commands during development. Also offer a `--dry-run` flag that does the same.
 - The GitHub API is unauthenticated by default (60 requests/hour). Live checks resolve a handful of
-  themes, never the whole catalog. `GITHUB_TOKEN` or `OMARCHY_THEMES_GITHUB_TOKEN` raises the limit.
+  themes, never the whole catalog. `GITHUB_TOKEN` raises the limit.
 - Commit and push only when the user asks; commit messages end with the session's attribution line.
 
 ## Scope

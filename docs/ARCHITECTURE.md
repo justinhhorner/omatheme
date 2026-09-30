@@ -17,9 +17,11 @@ windows/
   Directory.Packages.props         central NuGet versions
   src/OmarchyThemes.Core/          net10.0, no Windows deps: catalog, GitHub, palettes, store, ThemeApplier
   src/OmarchyThemes.Platform.Windows/  IDesktopBackend for Windows (COM + registry, via CsWin32)
+  src/OmarchyThemes.Stores/        net10.0: the app's logic as stores (catalog, library, desktop, terminal)
   src/OmarchyThemes.App/           WinUI 3 app (unpackaged, self-contained Windows App SDK)
   tests/OmarchyThemes.Core.Tests/  xUnit, platform-neutral
   tests/OmarchyThemes.Platform.Windows.Tests/  xUnit, Windows backend against fake registry/COM
+  tests/OmarchyThemes.Stores.Tests/  xUnit, the stores wired to Core's fakes
   tools/Generate-AppIcon.ps1       renders Assets/AppIcon.png + .ico
 macos/
   project.yml                      XcodeGen spec (the .xcodeproj is generated, not committed)
@@ -58,9 +60,9 @@ dotnet run --project src/OmarchyThemes.App
 
 ### GitHub rate limit
 
-`GITHUB_TOKEN` (or `OMARCHY_THEMES_GITHUB_TOKEN`) raises the GitHub rate limit (60 requests/hour
-unauthenticated). On macOS, apps started from the Finder don't inherit your shell's environment, so set
-it with `launchctl setenv` or run the app binary from a terminal.
+`GITHUB_TOKEN` raises the GitHub rate limit (60 requests/hour unauthenticated). On macOS, apps started
+from the Finder don't inherit your shell's environment, so set it with `launchctl setenv` or run the app
+binary from a terminal.
 
 ### Logs
 
@@ -174,12 +176,23 @@ Known limitations:
   **downloads** (`ThemeDownloads`, keyed by theme): they outlive the page that started them, so
   leaving a theme mid-download neither cancels nor orphans it, coming back shows the live
   progress, and pressing Download again joins the running download. Concurrent lookups of one
-  theme share a single GitHub request (`ThemeDetailsService`).
+  theme share a single GitHub request (`ThemeDetailsService`). `ExpectedErrors` decides which
+  failures are part of normal use (network, disk, GitHub) and are reported rather than crashing,
+  and words the common ones.
 - **Platform.Windows** implements `IDesktopBackend` (`WindowsDesktopBackend`). Each OS touchpoint
   sits behind a small interface (`IRegistryAccess`, `IWallpaperApi`, `ISettingsBroadcaster`,
-  `IImageConverter`) so the backend is tested without changing the machine it runs on.
+  `IImageConverter`) so the backend is tested without changing the machine it runs on. It also has
+  `WindowsTerminalSchemes`, the `ITerminalSchemes` (Core) for Windows Terminal.
+- **Stores** holds the app's logic, platform-neutral and tested like Core: `Preferences`
+  (settings in memory), `CatalogStore` (cached load, the 12-hour refresh rule, shared refreshes,
+  notices, search filtering), `ThemeLibrary` (downloaded themes, lookups, downloads, removal, Clear
+  Cache), `DesktopStore` (apply, one at a time, the current theme and wallpaper, restore) and
+  `TerminalStore`. They return a `Banner` (or `ApplySummary`) for each outcome and raise `Changed`
+  events; they mirror the macOS stores.
 - **App** is the WinUI 3 UI (MVVM with CommunityToolkit.Mvvm, DI via
-  Microsoft.Extensions.DependencyInjection).
+  Microsoft.Extensions.DependencyInjection). Its view models are thin adapters that turn store state
+  into bindable properties and `InfoBar`s; new logic goes in a store, with a test. Unhandled
+  exceptions are logged with their stack trace before the app exits.
 
 Local data lives in `%LOCALAPPDATA%\OmarchyThemes`:
 
@@ -270,7 +283,13 @@ Safety:
   file, because Windows' `TranscodedWallpaper` is overwritten by the next wallpaper change.
   **Restore my original desktop** writes the values back (deleting ones that didn't exist before)
   and restores the per-monitor wallpapers, fit and desktop fill color (which is system-wide).
-- If the snapshot can't be taken, nothing is applied.
+- If the snapshot can't be taken, nothing is applied. If a saved snapshot exists but can't be read,
+  nothing is applied either (rather than overwriting it with the themed desktop); Restore says why.
+  The private wallpaper copies are made in a staging folder and swapped in only when all succeed.
+- Downloads, reinstalls and removals never leave a half-installed theme: a reinstall renames the old
+  copy aside and deletes it only once the new one is in place, and the next launch puts back a copy
+  a failed reinstall left aside. Cache writes are atomic with unique temp files and never fail a
+  request that succeeded.
 
 Known limitations:
 
@@ -298,7 +317,7 @@ Known limitations:
 
 ## Tests
 
-`dotnet test` in `windows/` runs both suites. No OS state is touched and nothing hits the network.
+`dotnet test` in `windows/` runs the three suites. No OS state is touched and nothing hits the network.
 
 **Core (`OmarchyThemes.Core.Tests`)**
 
@@ -307,14 +326,16 @@ Known limitations:
 | Catalog parser | live `li > a > img + span` markup, `<figure>` layout, relative screenshots, skipping nav/non-GitHub/duplicate cards, unique slugs |
 | Default themes | folders under `themes/` only, Omarchy naming, `preview.png` screenshots, listed first, community-only fallback when GitHub fails, offline from cache, one shared tree call for listing and resolving |
 | Repo links | `.git`, trailing slashes, `/tree/<ref>/<subdir>`, rejecting `/compare`, `/issues`, non-GitHub hosts, path traversal |
-| Palettes | both `colors.toml` shapes, `alacritty.toml`, accent/mode fallbacks, lenient parsing of invalid TOML |
-| HTTP cache / GitHub | ETag 304 revalidation, max-age, stale-when-offline, rate-limit reset time, 404, token sent only to the API |
+| Palettes | both `colors.toml` shapes, `alacritty.toml`, accent/mode fallbacks, lenient parsing of invalid TOML, both formats naming the 16 ANSI swatches the same way (`AnsiColors`) |
+| HTTP cache / GitHub | ETag 304 revalidation, max-age, stale-when-offline, rate-limit reset time, 404, token sent only to the API, the shared User-Agent, a failed cache write still returning the response |
+| JSON files | atomic writes with other serializer options (UTF-8 without a BOM), no temp file left after success or failure, the previous file kept when a write fails |
 | Theme resolution | palette priority, `light.mode`, wallpaper discovery and natural ordering, repo sub-folders |
-| Store | atomic install (no partial theme on failure/cancel), reinstall, remove, settings round-trip |
-| Downloads | starting again joins the running download (each file fetched once), progress in bytes across files ending at 100%, cancel leaves nothing behind, failures reported not thrown; concurrent lookups share one request, and one caller giving up doesn't cancel the shared lookup |
-| `ThemeApplier` (fake backend) | snapshot-before-first-apply, abort if snapshot fails, per-step user/capability/data gating, partial failure, restore, the theme background passed as the wallpaper fill color |
+| Store | atomic install (no partial theme on failure/cancel), reinstall (the old copy kept if the swap fails), remove (nothing removed while in use), cleanup restoring a copy left aside, settings round-trip |
+| Downloads | starting again joins the running download (each file fetched once), progress in bytes across files ending at 100%, cancel leaves nothing behind, failures reported not thrown; concurrent lookups share one request, and one caller giving up doesn't cancel the shared lookup, clearing the details memo (a lookup in flight doesn't refill it) |
+| `ThemeApplier` (fake backend) | snapshot-before-first-apply, abort if snapshot fails, never overwriting an unreadable snapshot, per-step user/capability/data gating, partial failure, restore, the theme background passed as the wallpaper fill color |
 | Accent math | ABGR/ARGB packing, 7-shade palette, `AccentPalette` bytes, normalizing unusable accents |
-| Apply summaries | success, partial failure, total failure, snapshot failure and all-skipped messages |
+| Apply summaries | success (with the backend's accent note), partial failure, total failure, snapshot failure and all-skipped messages |
+| Expected errors | which failures are reported rather than crashing, caller cancellation, the "Couldn't reach GitHub" wording |
 | Terminal colors | named `colors.toml` mapped like Omarchy's own terminal template (black = background, white = foreground, bright black = `muted`, bright white and cursor = `bright_foreground`), `color0..15` and alacritty used as-is, fallbacks for missing colors |
 
 **Windows backend (`OmarchyThemes.Platform.Windows.Tests`)**, run against in-memory registry,
@@ -325,9 +346,19 @@ wallpaper and broadcast fakes:
 | Light/dark | both `Personalize` values + `ImmersiveColorSet` broadcast |
 | Accent | exact DWM/Explorer values and byte layout, `AutoColorization=0`, near-black accents lifted, nothing written outside `TrackedValues` |
 | Wallpaper | conversion before setting, fit and exact fill color passed through, `COLORREF` packing (0x00BBGGRR) |
-| Snapshot/restore | registry values restored and previously-absent values deleted, per-monitor wallpapers, fit and fill color, falling back to the private copy when the original file is gone, JSON round-trip |
+| Snapshot/restore | registry values restored and previously-absent values deleted, per-monitor wallpapers, fit and fill color, falling back to the private copy when the original file is gone, JSON round-trip, a failed capture keeping the previous copies |
 | WIC conversion | real Windows Imaging Component on temp files: PNG output, reuse, actionable error for unreadable images |
 | Windows Terminal fragments | a complete scheme (name + all 16 colors, which Terminal requires), UTF-8 without a BOM, schemes only (no profile changes), replace/remove/cleanup, unusual names, slug path safety |
+
+**Stores (`OmarchyThemes.Stores.Tests`)** build the real stores from Core's fakes (linked from
+`OmarchyThemes.Core.Tests/TestSupport/Fakes.cs`) and an in-memory terminal, mirroring the macOS stores
+suite: settings saved (or kept for the session when the file can't be written); catalog load, cache
+freshness, shared refreshes, offline, format-change and missing-default-theme notices, search
+filtering; downloads, failed and cancelled downloads, Clear Cache, removal and a removal that fails;
+apply, one-click apply with the saved defaults, remembering the Apply dialog's choices, one apply at a
+time, switching the current wallpaper (wallpaper only, saved fit), an apply whose settings can't be
+saved, restore and failed restore; terminal add/remove, failures, and refreshing old downloads' bright
+colors.
 
 Fixtures are hand-written to mirror the real page and theme repos rather than copied from them.
 
