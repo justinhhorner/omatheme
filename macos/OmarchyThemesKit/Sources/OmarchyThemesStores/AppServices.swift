@@ -6,6 +6,8 @@ import OmarchyThemesMac
 /// (an HTTP transport, downloader, desktop backend, terminal exporters) instead.
 public struct AppServices: Sendable {
     public var paths: AppPaths
+    /// The HTTP cache behind the catalog and GitHub lookups (for Clear Cache).
+    public var httpCache: HTTPCache
     public var catalog: CatalogService
     public var resolver: ThemeResolver
     public var themes: ThemeStore
@@ -16,10 +18,12 @@ public struct AppServices: Sendable {
     public var isDryRun: Bool
 
     public init(
-        paths: AppPaths, catalog: CatalogService, resolver: ThemeResolver, themes: ThemeStore, settings: SettingsStore,
-        applier: ThemeApplier, terminals: [any TerminalExporter], gitHubTokenIsSet: Bool = false, isDryRun: Bool = false
+        paths: AppPaths, httpCache: HTTPCache, catalog: CatalogService, resolver: ThemeResolver, themes: ThemeStore,
+        settings: SettingsStore, applier: ThemeApplier, terminals: [any TerminalExporter], gitHubTokenIsSet: Bool = false,
+        isDryRun: Bool = false
     ) {
         self.paths = paths
+        self.httpCache = httpCache
         self.catalog = catalog
         self.resolver = resolver
         self.themes = themes
@@ -50,6 +54,7 @@ public struct AppServices: Sendable {
 
         return AppServices(
             paths: paths,
+            httpCache: cache,
             catalog: CatalogService(cache: cache, github: github),
             resolver: ThemeResolver(github: github),
             themes: ThemeStore(paths: paths, downloader: URLSessionDownloader(session: HTTPSessions.make(requestTimeout: 60))),

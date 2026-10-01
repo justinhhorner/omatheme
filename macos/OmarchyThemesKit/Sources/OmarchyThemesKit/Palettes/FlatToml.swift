@@ -13,7 +13,8 @@ enum FlatToml {
     static func parseLenient(_ text: String) -> [String: String] {
         var result: [String: String] = [:]
         var section = ""
-        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
+        // isNewline, not "\n": a CRLF line ending is a single Character in Swift.
+        for rawLine in text.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty || line.hasPrefix("#") { continue }
 

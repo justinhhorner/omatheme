@@ -90,6 +90,11 @@ struct ThemeDetailView: View {
             }
         }
         .task(id: entry.slug) { await load() }
+        .onChange(of: installed == nil) { _, isNotDownloaded in
+            // The download was removed (here or from Downloaded): the page had everything from
+            // disk, so look the theme up to show it and offer Download again.
+            if isNotDownloaded { Task { await load() } }
+        }
         .onChange(of: wallpapers.map(\.name)) { _, names in
             // After Download Again with fewer wallpapers, fall back to the first rather than none.
             if !names.indices.contains(selectedWallpaper) { selectedWallpaper = 0 }
@@ -325,14 +330,10 @@ struct ThemeDetailView: View {
         isResolving = true
         resolveError = nil
         defer { isResolving = false }
-        do {
-            details = try await library.details(for: entry, force: force)
-        } catch is CancellationError {
-        } catch let error as URLError where error.code == .cancelled {
-        } catch let error as URLError {
-            resolveError = "Couldn't reach GitHub. Check your internet connection and try again. (\(error.localizedDescription))"
-        } catch {
-            resolveError = error.localizedDescription
+        switch await library.lookUp(entry, force: force) {
+        case .found(let found): details = found
+        case .failed(let message): resolveError = message
+        case .cancelled: break
         }
     }
 

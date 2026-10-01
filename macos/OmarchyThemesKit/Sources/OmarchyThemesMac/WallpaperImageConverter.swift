@@ -18,7 +18,8 @@ public struct WallpaperImageConverter: Sendable {
 
         let fm = FileManager.default
         let folder = image.deletingLastPathComponent().appending(path: ".converted", directoryHint: .isDirectory)
-        let output = folder.appending(path: image.deletingPathExtension().lastPathComponent + ".png")
+        // "1.webp.png": the original extension stays, so 1.webp and 1.bmp don't share a PNG.
+        let output = folder.appending(path: image.lastPathComponent + ".png")
         if let converted = modificationDate(output), let original = modificationDate(image), converted >= original {
             return output
         }

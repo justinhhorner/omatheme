@@ -65,6 +65,24 @@ public final class ThemeLibrary {
         return details
     }
 
+    /// Looks a theme up for its page (see `details(for:force:)`), with a failure worded for the page.
+    public func lookUp(_ entry: CatalogEntry, force: Bool = false) async -> ThemeLookup {
+        do {
+            return .found(try await details(for: entry, force: force))
+        } catch {
+            return Self.describeLookupFailure(error).map(ThemeLookup.failed) ?? .cancelled
+        }
+    }
+
+    /// What to tell the user about a failed lookup; nil if it was cancelled.
+    static func describeLookupFailure(_ error: any Error) -> String? {
+        if error is CancellationError || (error as? URLError)?.code == .cancelled { return nil }
+        if let error = error as? URLError {
+            return "Couldn't reach GitHub. Check your internet connection and try again. (\(error.localizedDescription))"
+        }
+        return error.localizedDescription
+    }
+
     public func clearDetailsCache() {
         detailsCache.removeAll()
         cacheGeneration += 1
@@ -132,6 +150,15 @@ public final class ThemeLibrary {
             : error.localizedDescription
         return Banner(kind: .error, title: "Download failed", message: message)
     }
+}
+
+/// The outcome of looking a theme up for its page.
+public enum ThemeLookup: Sendable {
+    case found(ThemeDetails)
+    /// Why the theme couldn't be read, worded for the page.
+    case failed(String)
+    /// The lookup was cancelled; there's nothing to show.
+    case cancelled
 }
 
 /// Progress of one theme download, shown on its detail page.

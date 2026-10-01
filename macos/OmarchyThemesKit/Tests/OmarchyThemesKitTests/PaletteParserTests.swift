@@ -151,4 +151,16 @@ struct FlatTomlTests {
         #expect(values["colors.primary.background"] == "#000000")
         #expect(values["colors.primary.foreground"] == "#ffffff")
     }
+
+    /// Files edited on Windows end lines with CRLF, which Swift reads as one character, not "\n".
+    @Test(arguments: [
+        "[colors.primary]\r\nbackground = \"#000000\"\r\nforeground = \"#ffffff\"\r\n", // valid: strict reader
+        "[colors.primary]\r\nbackground = \"#000000\"\r\noops =\r\nforeground = \"#ffffff\"\r\n", // broken: lenient scanner
+    ])
+    func readsWindowsLineEndings(text: String) {
+        let values = FlatToml.parse(text)
+
+        #expect(values["colors.primary.background"] == "#000000")
+        #expect(values["colors.primary.foreground"] == "#ffffff")
+    }
 }

@@ -75,6 +75,20 @@ public final class HTTPCache: Sendable {
                               etag: meta.etag, lastModified: meta.lastModified)
     }
 
+    /// Deletes every cached response. Only the cache's own `<xx>/` folders go, so other caches kept
+    /// in the same folder (the app's thumbnails in `images/`) are left to their owners.
+    public func clear() throws {
+        let fm = FileManager.default
+        let items = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        for item in items where Self.isShardFolder(item.lastPathComponent) {
+            try fm.removeItem(at: item)
+        }
+    }
+
+    private static func isShardFolder(_ name: String) -> Bool {
+        name.count == 2 && name.allSatisfy(\.isHexDigit)
+    }
+
     private func store(_ response: CachedResponse, for url: URL) throws {
         try FileManager.default.writeAtomically(response.body, to: paths(for: url).body)
         try writeMeta(for: url, response)

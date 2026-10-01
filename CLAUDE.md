@@ -175,7 +175,7 @@ What was built, per the confirmed plan. See README "Building on macOS" and `docs
   target `OmarchyThemesMac` holds `MacDesktopBackend` behind a fake-able `WallpaperAPI` (mirrors
   Platform.Windows); target `OmarchyThemesStores` holds the app's logic as observable stores built from an
   injectable `AppServices`; `OmarchyThemesTestSupport` has the shared fakes and fixtures (read from root
-  `fixtures/` via `#filePath`). Tests: 117 Kit + 37 Mac (4 of them opt-in live checks) + 31 stores, Swift Testing.
+  `fixtures/` via `#filePath`). Tests: 119 Kit + 41 Mac (4 of them opt-in live checks) + 33 stores, Swift Testing.
 - `macos/App`: SwiftUI views plus a thin `AppModel` (the stores, the thumbnail loader, navigation). Views take
   the stores they use from the environment (`appEnvironment`); put new logic in a store, with a test, not in a view.
 - `macos/project.yml` → `xcodegen` → `OmarchyThemes.xcodeproj` (ignored). Bundle id

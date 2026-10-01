@@ -159,6 +159,21 @@ struct HTTPCacheTests {
         #expect(error?.localizedDescription == "example.com returned 500 Internal server error.")
     }
 
+    /// The app keeps its thumbnail cache (a live URLCache) in the same folder; clearing must not
+    /// delete its files from under it.
+    @Test func clearDeletesResponsesButNotOtherCachesInTheFolder() async throws {
+        http.on(url.absoluteString, body: "v1")
+        _ = try await cache.get(url)
+        let thumbnails = dir.url.appending(path: "images/Cache.db")
+        try FileManager.default.writeAtomically(Data("db".utf8), to: thumbnails)
+
+        try cache.clear()
+
+        #expect(cache.cachedResponse(for: url) == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.url.path) == ["images"])
+        #expect(FileManager.default.fileExists(atPath: thumbnails.path))
+    }
+
     @Test func stripsByteOrderMark() async throws {
         http.on(url.absoluteString, body: "\u{FEFF}hello")
         #expect(try await cache.get(url).text == "hello")

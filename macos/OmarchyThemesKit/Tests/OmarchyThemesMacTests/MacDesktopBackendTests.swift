@@ -259,7 +259,7 @@ struct MacDesktopBackendTests {
         try await backend.setWallpaper(webp, fit: .fill, fillColor: nil)
 
         let url = try #require(api.setCalls.first?.url)
-        #expect(url.lastPathComponent == "night.png")
+        #expect(url.lastPathComponent == "night.webp.png")
         #expect(url.deletingLastPathComponent().lastPathComponent == ".converted")
     }
 
@@ -318,6 +318,19 @@ struct WallpaperImageConverterTests {
         let source = try #require(CGImageSourceCreateWithURL(first as CFURL, nil))
         #expect(CGImageSourceGetType(source) as String? == UTType.png.identifier)
         #expect(CGImageSourceCreateImageAtIndex(source, 0, nil)?.width == 4)
+    }
+
+    @Test func imagesThatDifferOnlyInFormatConvertToSeparateFiles() throws {
+        let webp = temp.file("wallpapers/1.webp", WebP.onePixel)
+        let bmp = temp.url.appending(path: "wallpapers/1.bmp")
+        try writeImage(to: bmp, type: .bmp)
+
+        let fromWebP = try converter.ensureSupportedFormat(webp)
+        let fromBMP = try converter.ensureSupportedFormat(bmp)
+
+        #expect(fromWebP != fromBMP)
+        let source = try #require(CGImageSourceCreateWithURL(fromBMP as CFURL, nil))
+        #expect(CGImageSourceCreateImageAtIndex(source, 0, nil)?.width == 4) // the BMP, not the 1-pixel WebP
     }
 
     @Test func unreadableImagesGiveAnActionableError() {

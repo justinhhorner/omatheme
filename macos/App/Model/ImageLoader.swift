@@ -1,21 +1,35 @@
 import AppKit
 import ImageIO
+import os
 import OmarchyThemesKit
 import SwiftUI
 
 /// Loads screenshots and wallpapers as downsampled thumbnails. Remote images go through a disk
 /// URLCache (the gallery shows 140+ screenshots); decoded thumbnails are kept in memory.
+///
+/// The disk cache lives in a "generation" folder inside `cacheDirectory`. A URLCache can't be
+/// emptied reliably (`removeAllCachedResponses` leaves its disk store behind) and its files mustn't
+/// be deleted while it's in use, so `clear()` starts a new generation and deletes the old one.
 final class ImageLoader: Sendable {
-    private let session: URLSession
+    private let directory: URL
+    private let generation: OSAllocatedUnfairLock<Generation>
     private let memory = ThumbnailCache()
 
-    init(cacheDirectory: URL) {
-        let configuration = URLSessionConfiguration.default
-        configuration.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20, directory: cacheDirectory)
-        configuration.requestCachePolicy = .returnCacheDataElseLoad
-        configuration.httpAdditionalHeaders = ["User-Agent": AppInfo.userAgent]
-        session = URLSession(configuration: configuration)
+    private struct Generation {
+        let folder: URL
+        let session: URLSession
     }
+
+    init(cacheDirectory: URL) {
+        directory = cacheDirectory
+        // The newest generation's thumbnails carry over between launches; anything else here
+        // (an older generation, or the single cache earlier versions kept) is left over.
+        let keep = Self.newestGeneration(in: cacheDirectory)
+        Self.deleteContents(of: cacheDirectory, except: keep)
+        generation = OSAllocatedUnfairLock(initialState: Self.makeGeneration(keep ?? Self.newFolder(in: cacheDirectory)))
+    }
+
+    private var session: URLSession { generation.withLock { $0.session } }
 
     /// A thumbnail no larger than `maxPixelSize` on its long edge, or nil if it can't be loaded.
     func thumbnail(for url: URL, maxPixelSize: Int) async -> CGImage? {
@@ -42,8 +56,50 @@ final class ImageLoader: Sendable {
         return image
     }
 
-    func clearMemory() {
+    /// Forgets every thumbnail, in memory and on disk: later loads use a new, empty generation, and
+    /// the old one's folder is deleted once nothing new can be stored in it.
+    func clear() {
         memory.removeAllObjects()
+        let fresh = Self.makeGeneration(Self.newFolder(in: directory))
+        let old = generation.withLock { current in
+            defer { current = fresh }
+            return current
+        }
+        old.session.finishTasksAndInvalidate()
+        try? FileManager.default.removeItem(at: old.folder)
+    }
+
+    private static func makeGeneration(_ folder: URL) -> Generation {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20, directory: folder)
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        configuration.httpAdditionalHeaders = ["User-Agent": AppInfo.userAgent]
+        return Generation(folder: folder, session: URLSession(configuration: configuration))
+    }
+
+    private static func newFolder(in directory: URL) -> URL {
+        directory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+    }
+
+    private static func newestGeneration(in directory: URL) -> URL? {
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .creationDateKey]
+        let items = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys))) ?? []
+        return items
+            .compactMap { url -> (URL, Date)? in
+                // Generations are UUID-named; an older version's URLCache has its own subfolders here.
+                guard UUID(uuidString: url.lastPathComponent) != nil,
+                      let values = try? url.resourceValues(forKeys: keys), values.isDirectory == true
+                else { return nil }
+                return (url, values.creationDate ?? .distantPast)
+            }
+            .max { $0.1 < $1.1 }?.0
+    }
+
+    private static func deleteContents(of directory: URL, except keep: URL?) {
+        let items = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        for item in items where item.standardizedFileURL.path != keep?.standardizedFileURL.path {
+            try? FileManager.default.removeItem(at: item)
+        }
     }
 
     private final class Thumbnail {

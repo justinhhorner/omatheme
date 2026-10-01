@@ -16,8 +16,11 @@ public final class AppStores {
     public let desktop: DesktopStore
     public let terminals: TerminalStore
 
+    private let httpCache: HTTPCache
+
     public init(services: AppServices, now: @escaping @Sendable () -> Date = { Date() }) {
         paths = services.paths
+        httpCache = services.httpCache
         isDryRun = services.isDryRun
         gitHubTokenIsSet = services.gitHubTokenIsSet
 
@@ -30,11 +33,10 @@ public final class AppStores {
     }
 
     /// Deletes the HTTP cache (catalog, GitHub responses) and forgets resolved themes. Downloaded
-    /// themes are kept.
+    /// themes are kept, and so are the app's thumbnails (it clears those through their own cache).
     public func clearCache() throws {
-        let fm = FileManager.default
-        try fm.removeItemIfPresent(at: paths.cacheDir)
-        try fm.createDirectory(at: paths.cacheDir, withIntermediateDirectories: true)
-        library.clearDetailsCache()
+        // Even a partly cleared cache must be read again rather than served from memory.
+        defer { library.clearDetailsCache() }
+        try httpCache.clear()
     }
 }

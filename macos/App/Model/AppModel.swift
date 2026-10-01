@@ -21,7 +21,7 @@ final class AppModel {
     /// Clears the HTTP cache, resolved themes and thumbnails. Downloaded themes are kept.
     func clearCache() throws {
         try stores.clearCache()
-        images.clearMemory()
+        images.clear()
     }
 }
 

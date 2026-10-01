@@ -38,6 +38,7 @@ final class Harness {
         let github = GitHubClient(cache: cache)
         return AppServices(
             paths: dir.paths,
+            httpCache: cache,
             catalog: CatalogService(cache: cache, github: github),
             resolver: ThemeResolver(github: github),
             themes: ThemeStore(paths: dir.paths, downloader: downloader, now: clock.function),

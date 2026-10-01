@@ -117,6 +117,43 @@ struct GhosttyExporterTests {
         #expect(!FileManager.default.fileExists(atPath: file.path))
     }
 
+    let mac = FakeTerminalMac(installed: ["com.mitchellh.ghostty"])
+    var ghostty: GhosttyExporter { GhosttyExporter(environment: mac.environment) }
+    var themes: URL { mac.temp.url.appending(path: "home/.config/ghostty/themes") }
+
+    @Test func aRenamedThemeFindsAndReplacesItsFileUnderTheOldName() throws {
+        try ghostty.add(slug: "nord", themeName: "Nord", colors: tokyo)
+
+        #expect(ghostty.isAdded(slug: "nord", themeName: "Nord Deep"))
+
+        try ghostty.add(slug: "nord", themeName: "Nord Deep", colors: tokyo)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: themes.path) == ["Nord Deep (Omarchy)"])
+
+        try ghostty.remove(slug: "nord", themeName: "Nord Deep")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: themes.path).isEmpty)
+    }
+
+    @Test func anotherThemeWithTheSameNameIsNotOverwritten() throws {
+        try ghostty.add(slug: "omarchy.nord", themeName: "Nord", colors: tokyo)
+
+        #expect(!ghostty.isAdded(slug: "nord", themeName: "Nord"))
+        #expect(throws: GhosttyThemeNameTakenError.self) { try ghostty.add(slug: "nord", themeName: "Nord", colors: tokyo) }
+        try ghostty.remove(slug: "nord", themeName: "Nord")
+
+        #expect(GhosttyExporter.slug(in: themes.appending(path: "Nord (Omarchy)")) == "omarchy.nord")
+    }
+
+    @Test func untaggedFilesFromEarlierVersionsStillCount() throws {
+        let old = themes.appending(path: "Nord (Omarchy)")
+        try FileManager.default.writeAtomically(Data("# Nord (Omarchy), added by Omarchy Themes.\nbackground = #2e3440\n".utf8), to: old)
+        try FileManager.default.writeAtomically(Data("background = #000000\n".utf8), to: themes.appending(path: "My Own"))
+
+        #expect(ghostty.isAdded(slug: "nord", themeName: "Nord"))
+
+        try ghostty.remove(slug: "nord", themeName: "Nord")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: themes.path) == ["My Own"])
+    }
+
     @Test func aConfigFolderCountsAsInstalled() throws {
         let mac = FakeTerminalMac(installed: [])
         let ghostty = GhosttyExporter(environment: mac.environment)

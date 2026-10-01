@@ -193,6 +193,37 @@ struct ThemeLibraryTests {
         #expect(banner.title == "Download removed")
         #expect(stores.library.installed.isEmpty)
     }
+
+    /// A downloaded theme's page reads everything from disk; once the download is removed it looks
+    /// the theme up, so it can show it and offer Download again.
+    @Test func aRemovedDownloadCanBeLookedUpForItsPage() async throws {
+        try await harness.installTokyo(in: harness.makeStores())
+        let stores = harness.makeStores() // a later launch: nothing looked up yet this session
+        let theme = try #require(stores.library.installedTheme(Harness.tokyoEntry.slug))
+        _ = stores.library.remove(theme)
+
+        guard case .found(let details) = await stores.library.lookUp(Harness.tokyoEntry) else {
+            Issue.record("Expected the theme to be found")
+            return
+        }
+        #expect(details.canApply)
+        #expect(details.wallpapers.count == 3)
+        // The file list is still fresh in the HTTP cache, so this cost no API call.
+        #expect(harness.http.count(for: Harness.treeURL) == 1)
+    }
+
+    @Test func lookupFailuresAreWordedForThePage() async {
+        harness.http.on(Harness.treeURL) { _ in throw URLError(.notConnectedToInternet) }
+        let library = harness.makeStores().library
+
+        guard case .failed(let message) = await library.lookUp(Harness.tokyoEntry) else {
+            Issue.record("Expected the lookup to fail")
+            return
+        }
+        #expect(message.hasPrefix("Couldn't reach GitHub. Check your internet connection and try again."))
+        #expect(ThemeLibrary.describeLookupFailure(CancellationError()) == nil)
+        #expect(ThemeLibrary.describeLookupFailure(URLError(.cancelled)) == nil)
+    }
 }
 
 @MainActor

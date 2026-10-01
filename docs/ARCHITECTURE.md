@@ -132,7 +132,7 @@ own files and never edits the terminal's settings:
 | Terminal | What Add does | Remove |
 |---|---|---|
 | iTerm2 (default) | Writes a Dynamic Profile, `~/Library/Application Support/iTerm2/DynamicProfiles/omarchy-themes-<slug>.json`, with a stable GUID. iTerm2 picks it up live. | Deletes the file. |
-| Ghostty | Writes a theme file, `$XDG_CONFIG_HOME/ghostty/themes/<Theme> (Omarchy)` (`~/.config` by default). The user sets `theme = "…"` and reloads the config. Counts as installed if the app or a Ghostty config folder exists. | Deletes the file. |
+| Ghostty | Writes a theme file, `$XDG_CONFIG_HOME/ghostty/themes/<Theme> (Omarchy)` (`~/.config` by default), tagged with a `# omarchy-themes-slug:` comment so a renamed theme still finds its file and two themes with the same name don't overwrite each other (Add says so instead). The user sets `theme = "…"` and reloads the config. Counts as installed if the app or a Ghostty config folder exists. | Deletes the theme's files. |
 | Terminal.app | Writes a `.terminal` profile (keyed-archived `NSColor`s) to `terminal/` in the data folder and opens it with Terminal, which imports it and opens a window. Whether it's there is read from Terminal's preferences (read-only). | Manual: the button explains how (Terminal › Settings › Profiles, −), since removing it would mean editing Terminal's settings. |
 
 To add a terminal, write a type conforming to `TerminalExporter` (`ITermExporter` is the smallest
@@ -142,7 +142,9 @@ folders, finding and opening apps, reading another app's preferences) goes throu
 
 Local data lives in `~/Library/Application Support/OmarchyThemes`, with the same layout **and file
 format** as on Windows (see [data-format.md](data-format.md)). Screenshot and wallpaper thumbnails are
-also cached in `cache/images/` (macOS only).
+also cached in `cache/images/<id>/` (macOS only), a URLCache. Clear Cache starts a new `<id>` folder
+and deletes the old one: `removeAllCachedResponses` leaves URLCache's disk store behind, and its files
+can't be deleted while it's in use.
 
 ### Applying a theme on macOS
 
@@ -384,14 +386,16 @@ palettes, HTTP cache and GitHub client, theme resolution, store and settings, `T
 apply summaries), including the terminal color mapping (`TerminalColorsTests`) and recording the
 current wallpaper only when the wallpaper step applied (`AfterApplyTests`), each with the same cases as
 on Windows. It also covers the strict TOML reader (inline tables, quoted and dotted keys, escapes,
-multi-line strings, arrays) and checks that concurrent applies never interleave.
+multi-line strings, arrays), Windows (CRLF) line endings in both TOML readers, and checks that
+concurrent applies never interleave.
 
 **Stores (`OmarchyThemesStoresTests`)** build the real stores from fake services (routed HTTP, a
 downloader that writes the URL into each file, a recording desktop backend, in-memory terminals): catalog
 load, cache freshness, shared refreshes, offline and missing-default-theme notices; downloads (shared,
-failed, cancelled), memoized lookups and Clear Cache, removal; apply, one apply at a time, switching the
-current wallpaper (wallpaper only, saved fit), restore and failed restore, fit fallback; terminal
-selection, add/remove, manual removal, failures, and refreshing old downloads' bright colors.
+failed, cancelled), memoized lookups and Clear Cache, removal, looking a removed theme up again, the
+wording of failed lookups; apply, one apply at a time, switching the current wallpaper (wallpaper only,
+saved fit), restore and failed restore, fit fallback; terminal selection, add/remove, manual removal,
+failures, and refreshing old downloads' bright colors.
 
 **macOS backend (`OmarchyThemesMacTests`)**, against an in-memory `WallpaperAPI`:
 
@@ -401,7 +405,7 @@ selection, add/remove, manual removal, failures, and refreshing old downloads' b
 | Snapshot/restore | per-screen picture and options, one private copy per file, system pictures not copied, a failed capture keeps the previous copies, falling back to the copy when the original is gone, a display connected later, failure only when every screen fails it tried, no display connected keeps the snapshot |
 | Capabilities | wallpaper only; through `ThemeApplier`, light/dark and accent report "not supported" |
 | ImageIO conversion | real ImageIO on temp files: WebP decoding, BMP → PNG, reuse, actionable error for unreadable images |
-| Terminal exporters | against a fake Mac (temp home, chosen installed apps, recorded "open" calls): registry order and default (iTerm2), shared scheme name, iTerm2 Dynamic Profile JSON (every color as sRGB components, stable GUID, add/remove), Ghostty theme file (all keys and 16 palette entries, config folder counts as installed), Terminal.app `.terminal` plist (keyed-archived NSColors, opened with Terminal, profile detection read-only, removal manual) |
+| Terminal exporters | against a fake Mac (temp home, chosen installed apps, recorded "open" calls): registry order and default (iTerm2), shared scheme name, iTerm2 Dynamic Profile JSON (every color as sRGB components, stable GUID, add/remove), Ghostty theme file (all keys and 16 palette entries, config folder counts as installed, renamed themes, same-name themes, untagged older files), Terminal.app `.terminal` plist (keyed-archived NSColors, opened with Terminal, profile detection read-only, removal manual) |
 
 `OMATHEME_LIVE=1 swift test --filter LiveChecks` runs opt-in, read-only checks against the
 live site, a few theme repos and this Mac's current desktop. During development they parsed all 146
