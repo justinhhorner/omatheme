@@ -45,7 +45,6 @@ public struct RepoTreeItem: Hashable, Sendable {
 public struct RepoTree: Sendable {
     /// Paths relative to the theme root (the repo's sub-folder if the link had one).
     public let items: [RepoTreeItem]
-    public let truncated: Bool
     /// True when served from cache because GitHub couldn't be reached.
     public let isStale: Bool
     public let staleReason: (any Error)?
@@ -119,7 +118,7 @@ public struct GitHubClient: Sendable {
             return RepoTreeItem(path: path, isFile: entry.type == "blob", size: entry.size)
         }
 
-        return RepoTree(items: items, truncated: tree.truncated ?? false, isStale: response.isStale, staleReason: response.error)
+        return RepoTree(items: items, isStale: response.isStale, staleReason: response.error)
     }
 
     /// raw.githubusercontent.com URL for a path relative to the theme root.
@@ -162,7 +161,6 @@ public struct GitHubClient: Sendable {
 
     private struct TreeResponse: Decodable {
         var tree: [Entry]?
-        var truncated: Bool?
 
         struct Entry: Decodable {
             var path: String?

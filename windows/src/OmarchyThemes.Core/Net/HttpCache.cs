@@ -59,7 +59,7 @@ public sealed class HttpCache
         {
             if (response.StatusCode == HttpStatusCode.NotModified && cached is not null)
             {
-                var refreshed = cached with { FetchedAt = _time.GetUtcNow(), FromCache = true };
+                var refreshed = cached with { FetchedAt = _time.GetUtcNow() };
                 TryWrite(() => WriteMeta(uri, refreshed));
                 return refreshed;
             }
@@ -77,7 +77,6 @@ public sealed class HttpCache
             var fresh = new CachedResponse(
                 body,
                 _time.GetUtcNow(),
-                FromCache: false,
                 IsStale: false,
                 ETag: response.Headers.ETag?.ToString(),
                 LastModified: response.Content.Headers.LastModified);
@@ -95,7 +94,7 @@ public sealed class HttpCache
             return null;
         try
         {
-            return new CachedResponse(File.ReadAllBytes(bodyPath), meta.FetchedAt, FromCache: true, IsStale: false, meta.ETag, ParseHttpDate(meta.LastModified));
+            return new CachedResponse(File.ReadAllBytes(bodyPath), meta.FetchedAt, IsStale: false, meta.ETag, ParseHttpDate(meta.LastModified));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -171,7 +170,6 @@ public sealed record CacheOptions
 public sealed record CachedResponse(
     byte[] Body,
     DateTimeOffset FetchedAt,
-    bool FromCache,
     bool IsStale,
     string? ETag = null,
     DateTimeOffset? LastModified = null)

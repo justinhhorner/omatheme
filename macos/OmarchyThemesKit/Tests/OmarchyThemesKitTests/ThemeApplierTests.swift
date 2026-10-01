@@ -25,7 +25,6 @@ struct ThemeApplierTests {
         let result = try await applier.apply(request())
 
         #expect(backend.calls == ["capture", "wallpaper:wall.png:fill:#1a1b26", "mode:light", "accent:#7aa2f7"])
-        #expect(result.succeeded)
         #expect(result.steps.allSatisfy { $0.outcome == .applied })
         #expect(snapshots.snapshot == backend.snapshotToReturn)
     }
@@ -58,7 +57,7 @@ struct ThemeApplierTests {
         #expect(backend.calls == ["capture", "wallpaper:wall.png:center:#1a1b26"])
         #expect(result.result(for: .appearanceMode)?.outcome == .skippedByUser)
         #expect(result.result(for: .accentColor)?.outcome == .skippedByUser)
-        #expect(result.succeeded)
+        #expect(result.result(for: .wallpaper)?.outcome == .applied)
     }
 
     @Test func skipsWhatThePlatformCannotDo() async throws {
@@ -69,7 +68,7 @@ struct ThemeApplierTests {
         #expect(backend.calls == ["capture", "wallpaper:wall.png:fill:#1a1b26"])
         #expect(result.result(for: .appearanceMode)?.outcome == .notSupported)
         #expect(result.result(for: .accentColor)?.outcome == .notSupported)
-        #expect(result.succeeded)
+        #expect(result.result(for: .wallpaper)?.outcome == .applied)
     }
 
     @Test func skipsAspectsTheThemeHasNoDataFor() async throws {
@@ -89,9 +88,7 @@ struct ThemeApplierTests {
         let mode = try #require(result.result(for: .appearanceMode))
         #expect(mode.outcome == .failed)
         #expect(mode.error == "mode exploded")
-        #expect(result.anyApplied)
-        #expect(result.anyFailed)
-        #expect(!result.succeeded)
+        #expect(result.result(for: .accentColor)?.outcome == .applied)
     }
 
     @Test func missingWallpaperFileFailsThatStepWithoutCallingTheOS() async throws {

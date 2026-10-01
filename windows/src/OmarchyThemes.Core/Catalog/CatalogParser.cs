@@ -1,5 +1,4 @@
 using System.Text;
-using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using OmarchyThemes.Core.GitHub;
 

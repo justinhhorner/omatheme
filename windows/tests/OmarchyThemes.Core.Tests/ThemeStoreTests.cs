@@ -58,7 +58,8 @@ public sealed class ThemeStoreTests : IDisposable
         Assert.Equal(installed.ScreenshotFile, reloaded.ScreenshotFile);
         Assert.Equal(RgbColor.Parse("#7aa2f7"), reloaded.Palette!.Accent);
         Assert.Single(_store.List());
-        Assert.Contains(reports, r => r.FileIndex == 1 && r.FileCount == 3 && r.FileName == "2.jpg");
+        // Both wallpapers, then the screenshot.
+        Assert.Equal([0, 1, 2], reports.Select(r => r.FileIndex).Distinct().Order());
     }
 
     [Fact]

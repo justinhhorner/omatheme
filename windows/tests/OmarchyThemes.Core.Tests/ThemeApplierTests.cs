@@ -36,7 +36,6 @@ public sealed class ThemeApplierTests : IDisposable
         var result = await _applier.ApplyAsync(Request());
 
         Assert.Equal(["capture", "wallpaper:wall.png:Fill", "mode:Light", "accent:#7aa2f7"], _backend.Calls);
-        Assert.True(result.Succeeded);
         Assert.All(result.Steps, s => Assert.Equal(StepOutcome.Applied, s.Outcome));
         Assert.Same(_backend.SnapshotToReturn, _snapshots.Snapshot);
     }
@@ -105,7 +104,7 @@ public sealed class ThemeApplierTests : IDisposable
         Assert.Equal(["capture", "wallpaper:wall.png:Span"], _backend.Calls);
         Assert.Equal(StepOutcome.SkippedByUser, result.For(ApplyStep.AppearanceMode)!.Outcome);
         Assert.Equal(StepOutcome.SkippedByUser, result.For(ApplyStep.AccentColor)!.Outcome);
-        Assert.True(result.Succeeded);
+        Assert.Equal(StepOutcome.Applied, result.For(ApplyStep.Wallpaper)!.Outcome);
     }
 
     [Fact]
@@ -143,9 +142,7 @@ public sealed class ThemeApplierTests : IDisposable
         var mode = result.For(ApplyStep.AppearanceMode)!;
         Assert.Equal(StepOutcome.Failed, mode.Outcome);
         Assert.Equal("mode exploded", mode.Error);
-        Assert.True(result.AnyApplied);
-        Assert.True(result.AnyFailed);
-        Assert.False(result.Succeeded);
+        Assert.Equal(StepOutcome.Applied, result.For(ApplyStep.AccentColor)!.Outcome);
     }
 
     [Fact]

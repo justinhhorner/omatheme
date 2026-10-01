@@ -93,9 +93,7 @@ struct HTTPCacheTests {
         clock.advance(by: 1800)
         let second = try await cache.get(url, options: options)
 
-        #expect(!first.fromCache)
-        #expect(second.fromCache)
-        #expect(second.text == "v1")
+        #expect(first.text == "v1" && second.text == "v1")
         #expect(http.count(for: url.absoluteString) == 1)
     }
 
@@ -110,9 +108,9 @@ struct HTTPCacheTests {
         clock.advance(by: 300)
         let revalidated = try await cache.get(url)
 
-        #expect(revalidated.fromCache)
+        #expect(http.count(for: url.absoluteString) == 2)
         #expect(!revalidated.isStale)
-        #expect(revalidated.text == "v1")
+        #expect(revalidated.text == "v1") // the 304 has no body: this is the cached one
         #expect(revalidated.fetchedAt == clock.now)
         #expect(cache.cachedResponse(for: url)?.fetchedAt == clock.now)
     }

@@ -2,7 +2,6 @@ using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OmarchyThemes.Core.Catalog;
-using OmarchyThemes.Core.GitHub;
 using OmarchyThemes.Core.Themes;
 
 namespace OmarchyThemes.Core.Storage;
@@ -28,10 +27,7 @@ public sealed record DownloadStatus(DownloadPhase Phase, int FileIndex, int File
 /// <summary>How a download ended.</summary>
 /// <param name="Theme">The installed theme, when it succeeded.</param>
 /// <param name="Error">What went wrong, when it failed.</param>
-public sealed record DownloadOutcome(InstalledTheme? Theme, ThemeDetails? Details, bool Cancelled, Exception? Error)
-{
-    public bool Succeeded => Theme is not null;
-}
+public sealed record DownloadOutcome(InstalledTheme? Theme, ThemeDetails? Details, bool Cancelled, Exception? Error);
 
 /// <summary>
 /// One running download. <see cref="Status"/> changes are raised on the thread (synchronization

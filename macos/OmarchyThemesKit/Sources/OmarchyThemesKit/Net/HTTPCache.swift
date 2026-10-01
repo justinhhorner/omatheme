@@ -42,7 +42,6 @@ public final class HTTPCache: Sendable {
 
         if response.statusCode == 304, var refreshed = cached {
             refreshed.fetchedAt = now()
-            refreshed.fromCache = true
             try? writeMeta(for: url, refreshed)
             return refreshed
         }
@@ -56,7 +55,6 @@ public final class HTTPCache: Sendable {
         let fresh = CachedResponse(
             body: data,
             fetchedAt: now(),
-            fromCache: false,
             isStale: false,
             etag: response.value(forHTTPHeaderField: "ETag"),
             lastModified: response.value(forHTTPHeaderField: "Last-Modified"))
@@ -71,7 +69,7 @@ public final class HTTPCache: Sendable {
         guard let meta = JSONFile.read(CacheMeta.self, from: metaURL), meta.url == url.absoluteString,
               let body = try? Data(contentsOf: bodyURL)
         else { return nil }
-        return CachedResponse(body: body, fetchedAt: meta.fetchedAt, fromCache: true, isStale: false,
+        return CachedResponse(body: body, fetchedAt: meta.fetchedAt, isStale: false,
                               etag: meta.etag, lastModified: meta.lastModified)
     }
 
@@ -147,7 +145,6 @@ public struct CacheOptions: Sendable {
 public struct CachedResponse: Sendable {
     public var body: Data
     public var fetchedAt: Date
-    public var fromCache: Bool
     public var isStale: Bool
     public var etag: String?
     public var lastModified: String?

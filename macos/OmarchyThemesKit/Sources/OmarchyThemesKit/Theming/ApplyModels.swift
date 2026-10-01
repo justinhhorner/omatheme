@@ -98,8 +98,6 @@ public struct ApplyResult: Sendable, Equatable {
     }
 
     public var anyApplied: Bool { steps.contains { $0.outcome == .applied } }
-    public var anyFailed: Bool { steps.contains { $0.outcome == .failed } }
-    public var succeeded: Bool { anyApplied && !anyFailed }
 
     public func result(for step: ApplyStep) -> StepResult? {
         steps.first { $0.step == step }

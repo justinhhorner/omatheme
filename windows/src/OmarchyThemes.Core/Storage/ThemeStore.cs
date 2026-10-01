@@ -29,7 +29,8 @@ public sealed record InstalledTheme
     public string? ScreenshotPath => ScreenshotFile is null ? null : Path.Combine(Directory, ScreenshotFile);
 }
 
-public sealed record DownloadProgress(int FileIndex, int FileCount, string FileName, long BytesReceived, long? TotalBytes);
+/// <param name="FileIndex">The file being downloaded: the wallpapers in order, then the screenshot.</param>
+public sealed record DownloadProgress(int FileIndex, long BytesReceived);
 
 /// <summary>Reports synchronously; callers' own IProgress (e.g. UI Progress&lt;T&gt;) handles thread marshaling.</summary>
 internal sealed class SyncProgress<T>(Action<T> report) : IProgress<T>
@@ -106,16 +107,15 @@ public sealed class ThemeStore
         {
             var wallpaperNames = new List<string>();
             var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var fileCount = details.Wallpapers.Count + (details.Entry.ScreenshotUrl is null ? 0 : 1);
 
             for (var i = 0; i < details.Wallpapers.Count; i++)
             {
                 var index = i;
                 var wallpaper = details.Wallpapers[i];
                 var name = UniqueFileName(wallpaper.FileName, usedNames);
-                progress?.Report(new DownloadProgress(index, fileCount, wallpaper.FileName, 0, wallpaper.Size));
+                progress?.Report(new DownloadProgress(index, 0));
                 var fileProgress = progress is null ? null : new SyncProgress<long>(bytes =>
-                    progress.Report(new DownloadProgress(index, fileCount, wallpaper.FileName, bytes, wallpaper.Size)));
+                    progress.Report(new DownloadProgress(index, bytes)));
                 await _downloader.DownloadAsync(wallpaper.DownloadUrl, Path.Combine(staging, WallpapersFolder, name), fileProgress, ct)
                     .ConfigureAwait(false);
                 wallpaperNames.Add(name);
@@ -129,7 +129,7 @@ public sealed class ThemeStore
                 var candidate = "screenshot" + (string.IsNullOrEmpty(ext) ? ".webp" : ext.ToLowerInvariant());
                 try
                 {
-                    progress?.Report(new DownloadProgress(fileCount - 1, fileCount, candidate, 0, null));
+                    progress?.Report(new DownloadProgress(details.Wallpapers.Count, 0));
                     await _downloader.DownloadAsync(new Uri(screenshotUrl), Path.Combine(staging, candidate), null, ct).ConfigureAwait(false);
                     screenshotFile = candidate;
                 }

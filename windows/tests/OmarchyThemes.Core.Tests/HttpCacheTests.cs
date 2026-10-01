@@ -27,8 +27,7 @@ public sealed class HttpCacheTests : IDisposable
         _time.Advance(TimeSpan.FromMinutes(30));
         var second = await _cache.GetAsync(new Uri(Url), options);
 
-        Assert.False(first.FromCache);
-        Assert.True(second.FromCache);
+        Assert.Equal("v1", first.Text);
         Assert.Equal("v1", second.Text);
         Assert.Equal(1, _http.CountFor(Url));
     }
@@ -47,9 +46,9 @@ public sealed class HttpCacheTests : IDisposable
         _time.Advance(TimeSpan.FromMinutes(5));
         var revalidated = await _cache.GetAsync(new Uri(Url));
 
-        Assert.True(revalidated.FromCache);
+        Assert.Equal(2, _http.CountFor(Url));
         Assert.False(revalidated.IsStale);
-        Assert.Equal("v1", revalidated.Text);
+        Assert.Equal("v1", revalidated.Text); // the 304 has no body: this is the cached one
         Assert.Equal(_time.Now, revalidated.FetchedAt);
     }
 

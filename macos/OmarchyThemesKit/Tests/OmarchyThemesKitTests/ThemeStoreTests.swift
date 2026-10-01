@@ -56,7 +56,8 @@ struct ThemeStoreTests {
         #expect(reloaded.screenshotFile == installed.screenshotFile)
         #expect(reloaded.palette?.accent == RgbColor("#7aa2f7"))
         #expect(store.list().count == 1)
-        #expect(reports.values.contains { $0.fileIndex == 1 && $0.fileCount == 3 && $0.fileName == "2.jpg" })
+        // Both wallpapers, then the screenshot.
+        #expect(Set(reports.values.map(\.fileIndex)) == [0, 1, 2])
     }
 
     @Test func failedDownloadLeavesNoPartialThemeBehind() async throws {

@@ -84,7 +84,7 @@ public sealed class GitHubClient
             .Select(i => new RepoTreeItem(prefix is null ? i.Path! : i.Path![prefix.Length..], i.Type == "blob", i.Size))
             .ToList();
 
-        return new RepoTree(items, tree.Truncated, response.IsStale, response.Error);
+        return new RepoTree(items, response.IsStale, response.Error);
     }
 
     /// <summary>raw.githubusercontent.com URL for a path relative to the theme root.</summary>
@@ -132,9 +132,7 @@ public sealed class GitHubClient
 
     private static string Esc(string s) => Uri.EscapeDataString(s);
 
-    private sealed record TreeResponse(
-        [property: JsonPropertyName("tree")] List<TreeItem>? Tree,
-        [property: JsonPropertyName("truncated")] bool Truncated);
+    private sealed record TreeResponse([property: JsonPropertyName("tree")] List<TreeItem>? Tree);
 
     private sealed record TreeItem(
         [property: JsonPropertyName("path")] string? Path,
@@ -149,7 +147,7 @@ public sealed record RepoTreeItem(string Path, bool IsFile, long? Size)
 
 /// <param name="Items">Paths relative to the theme root (the repo's sub-folder if the link had one).</param>
 /// <param name="IsStale">True when served from cache because GitHub couldn't be reached.</param>
-public sealed record RepoTree(IReadOnlyList<RepoTreeItem> Items, bool Truncated, bool IsStale = false, Exception? StaleReason = null)
+public sealed record RepoTree(IReadOnlyList<RepoTreeItem> Items, bool IsStale = false, Exception? StaleReason = null)
 {
     public IEnumerable<RepoTreeItem> Files => Items.Where(i => i.IsFile);
 

@@ -1,11 +1,9 @@
 import Foundation
 
 public struct DownloadProgress: Sendable, Equatable {
+    /// The file being downloaded: the wallpapers in order, then the screenshot.
     public var fileIndex: Int
-    public var fileCount: Int
-    public var fileName: String
     public var bytesReceived: Int64
-    public var totalBytes: Int64?
 }
 
 public struct NothingToDownloadError: LocalizedError, Sendable {
@@ -67,19 +65,17 @@ public struct ThemeStore: Sendable {
 
         var wallpaperNames: [String] = []
         var usedNames: Set<String> = []
-        let fileCount = details.wallpapers.count + (details.entry.screenshotURL == nil ? 0 : 1)
 
-        @Sendable func report(_ index: Int, _ fileName: String, bytes: Int64, of total: Int64?) {
-            progress?(DownloadProgress(
-                fileIndex: index, fileCount: fileCount, fileName: fileName, bytesReceived: bytes, totalBytes: total))
+        @Sendable func report(_ index: Int, bytes: Int64) {
+            progress?(DownloadProgress(fileIndex: index, bytesReceived: bytes))
         }
 
         for (index, wallpaper) in details.wallpapers.enumerated() {
             let name = Self.uniqueFileName(wallpaper.fileName, used: &usedNames)
-            report(index, wallpaper.fileName, bytes: 0, of: wallpaper.size)
+            report(index, bytes: 0)
             try Task.checkCancellation()
             try await downloader.download(from: wallpaper.downloadURL, to: stagingWallpapers.appending(path: name)) { bytes in
-                report(index, wallpaper.fileName, bytes: bytes, of: wallpaper.size)
+                report(index, bytes: bytes)
             }
             wallpaperNames.append(name)
         }
@@ -89,7 +85,7 @@ public struct ThemeStore: Sendable {
         if let screenshotURL = details.entry.screenshotURL {
             let ext = screenshotURL.pathExtension.lowercased()
             let candidate = "screenshot." + (ext.isEmpty ? "webp" : ext)
-            report(fileCount - 1, candidate, bytes: 0, of: nil)
+            report(details.wallpapers.count, bytes: 0)
             do {
                 try await downloader.download(from: screenshotURL, to: staging.appending(path: candidate), progress: nil)
                 screenshotFile = candidate

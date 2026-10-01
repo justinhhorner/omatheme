@@ -58,7 +58,7 @@ public sealed class ThemeDownloadsTests : IDisposable
         _downloader.Release();
         var outcome = await first.Completion;
 
-        Assert.True(outcome.Succeeded);
+        Assert.NotNull(outcome.Theme);
         Assert.Equal(["1.png", "2.png"], outcome.Theme!.Wallpapers);
         Assert.Equal(2, _downloader.Calls); // each wallpaper downloaded once, not twice
         Assert.Null(_downloads.Get(Entry.Slug));
@@ -101,7 +101,7 @@ public sealed class ThemeDownloadsTests : IDisposable
         var outcome = await download.Completion;
 
         Assert.True(outcome.Cancelled);
-        Assert.False(outcome.Succeeded);
+        Assert.Null(outcome.Theme);
         Assert.Null(_downloads.Get(Entry.Slug));
         Assert.Empty(Directory.EnumerateFileSystemEntries(_dir.AppPaths.ThemesDir));
     }
@@ -114,7 +114,7 @@ public sealed class ThemeDownloadsTests : IDisposable
 
         var outcome = await _downloads.Start(Entry).Completion;
 
-        Assert.False(outcome.Succeeded);
+        Assert.Null(outcome.Theme);
         Assert.IsType<GitHubNotFoundException>(outcome.Error);
         Assert.Null(_downloads.Get(Entry.Slug));
     }
