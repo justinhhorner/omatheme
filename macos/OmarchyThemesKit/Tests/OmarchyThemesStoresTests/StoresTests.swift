@@ -214,6 +214,20 @@ struct DesktopStoreTests {
         #expect(stores.desktop.applyingSlug == nil)
     }
 
+    /// Mirrors the Windows `Choices_from_the_apply_dialog_can_become_the_defaults`.
+    @Test func choicesFromTheApplySheetCanBecomeTheDefaults() async throws {
+        let stores = harness.makeStores()
+        let theme = try await harness.installTokyo(in: stores)
+        let choices = ApplyOptions(wallpaper: true, appearanceMode: false, accentColor: false, fit: .center)
+
+        _ = await stores.desktop.apply(theme, wallpaperFile: nil, options: choices)
+        #expect(stores.preferences.settings.applyDefaults == ApplyOptions())
+
+        _ = await stores.desktop.apply(theme, wallpaperFile: nil, options: choices, rememberOptions: true)
+        #expect(stores.preferences.settings.applyDefaults == choices)
+        #expect(harness.makeStores().preferences.settings.applyDefaults == choices)
+    }
+
     @Test func onlyOneApplyRunsAtATime() async throws {
         let stores = harness.makeStores()
         let theme = try await harness.installTokyo(in: stores)
@@ -353,5 +367,28 @@ struct TerminalStoreTests {
 
         let colors = try #require(harness.iterm.colors[Harness.tokyoEntry.slug])
         #expect(colors.ansi[8] == RgbColor("#8990b3")) // colors-named.toml's muted, from GitHub
+    }
+}
+
+@MainActor
+struct AppServicesTests {
+    let dir = TempDir()
+
+    func live(_ environment: [String: String]) -> AppServices {
+        // Dry run and a temp data folder: building the services must not touch the real Mac.
+        AppServices.live(environment: environment.merging(
+            ["OMARCHY_THEMES_DRY_RUN": "1", "OMARCHY_THEMES_DATA_DIR": dir.url.path]) { $1 })
+    }
+
+    @Test func theGitHubTokenComesFromGITHUB_TOKENOnly() {
+        #expect(live(["GITHUB_TOKEN": "secret"]).gitHubTokenIsSet)
+        #expect(!live(["OMARCHY_THEMES_GITHUB_TOKEN": "secret"]).gitHubTokenIsSet)
+        #expect(!live([:]).gitHubTokenIsSet)
+    }
+
+    @Test func testSwitchesAreHonoured() {
+        let services = live([:])
+        #expect(services.isDryRun)
+        #expect(services.paths.root == dir.paths.root)
     }
 }

@@ -40,7 +40,7 @@ public struct AppServices: Sendable {
         try? paths.ensureCreated()
 
         let cache = HTTPCache(transport: URLSessionTransport(session: HTTPSessions.make()), directory: paths.cacheDir)
-        let token = environment["OMARCHY_THEMES_GITHUB_TOKEN"] ?? environment["GITHUB_TOKEN"]
+        let token = environment["GITHUB_TOKEN"]
         let github = GitHubClient(cache: cache, token: token)
 
         let isDryRun = environment["OMARCHY_THEMES_DRY_RUN"] == "1"

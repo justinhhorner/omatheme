@@ -35,7 +35,6 @@ macos/
   tools/generate-app-icon.swift    renders the asset-catalog icon set from design/AppIcon.svg
 fixtures/                          test fixtures shared by the Windows and Swift tests
 docs/ARCHITECTURE.md               this file
-docs/windows-to-macos.md           Windows changes still to bring to the macOS app
 docs/screenshots/                  README screenshots
 ```
 
@@ -399,7 +398,7 @@ selection, add/remove, manual removal, failures, and refreshing old downloads' b
 | Area | Covered |
 |---|---|
 | Wallpaper | every screen set, fit → `imageScaling`/`allowClipping`, fill color, WebP converted before setting, a failing display doesn't stop the others (the error says how many changed) |
-| Snapshot/restore | per-screen picture and options, one private copy per file, system pictures not copied, falling back to the copy when the original is gone, a display connected later, failure only when every screen fails it tried, no display connected keeps the snapshot |
+| Snapshot/restore | per-screen picture and options, one private copy per file, system pictures not copied, a failed capture keeps the previous copies, falling back to the copy when the original is gone, a display connected later, failure only when every screen fails it tried, no display connected keeps the snapshot |
 | Capabilities | wallpaper only; through `ThemeApplier`, light/dark and accent report "not supported" |
 | ImageIO conversion | real ImageIO on temp files: WebP decoding, BMP → PNG, reuse, actionable error for unreadable images |
 | Terminal exporters | against a fake Mac (temp home, chosen installed apps, recorded "open" calls): registry order and default (iTerm2), shared scheme name, iTerm2 Dynamic Profile JSON (every color as sRGB components, stable GUID, add/remove), Ghostty theme file (all keys and 16 palette entries, config folder counts as installed), Terminal.app `.terminal` plist (keyed-archived NSColors, opened with Terminal, profile detection read-only, removal manual) |

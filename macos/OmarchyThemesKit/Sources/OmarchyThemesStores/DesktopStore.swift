@@ -58,9 +58,16 @@ public final class DesktopStore {
 
     // MARK: Apply
 
-    public func apply(_ theme: InstalledTheme, wallpaperFile: String?, options: ApplyOptions) async -> ApplySummary {
+    /// - Parameter rememberOptions: Also save `options` as the one-click defaults (the Apply sheet's
+    ///   "Use these choices for one-click Apply").
+    public func apply(
+        _ theme: InstalledTheme, wallpaperFile: String?, options: ApplyOptions, rememberOptions: Bool = false
+    ) async -> ApplySummary {
         guard applyingSlug == nil else {
             return ApplySummary(kind: .info, title: "Already applying a theme", message: "Wait for it to finish, then try again.")
+        }
+        if rememberOptions {
+            preferences.update { $0.applyDefaults = options }
         }
         applyingSlug = theme.slug
         defer {

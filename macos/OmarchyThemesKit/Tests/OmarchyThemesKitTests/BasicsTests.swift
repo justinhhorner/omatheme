@@ -123,3 +123,15 @@ struct HelperTests {
         #expect(TerminalColors.swatchName(ansi: 15) == "Bright white")
     }
 }
+
+struct AppInfoTests {
+    @Test func userAgentNamesTheAppAndVersionLikeWindows() {
+        #expect(AppInfo.userAgent(version: "0.1.0") == "OmarchyThemes/0.1.0 (+https://github.com/basecamp/omarchy)")
+        #expect(AppInfo.userAgent == AppInfo.userAgent(version: AppInfo.version))
+    }
+
+    @Test func outsideTheAppTheVersionIsAPlaceholder() {
+        // Under `swift test` the main bundle is the test runner, not the app.
+        #expect(AppInfo.version(of: .main) == "0.0.0")
+    }
+}

@@ -179,11 +179,30 @@ struct ThemeApplierTests {
         let snapshot = DesktopSnapshot(takenAt: Date(timeIntervalSince1970: 1_790_380_800.25), values: ["k": "v"])
 
         try store.save(snapshot)
-        #expect(store.load() == snapshot)
+        #expect(try store.load() == snapshot)
 
         try store.clear()
-        #expect(store.load() == nil)
+        #expect(try store.load() == nil)
         try store.clear()
+    }
+
+    /// Mirrors the Windows `Never_replaces_a_saved_desktop_it_cannot_read`.
+    @Test func neverReplacesASavedDesktopItCannotRead() async throws {
+        try Data("{ not json".utf8).write(to: dir.paths.snapshotFile)
+        let applier = ThemeApplier(backend: backend, snapshots: FileSnapshotStore(paths: dir.paths))
+
+        let result = try await applier.apply(request())
+
+        #expect(backend.calls.isEmpty)
+        #expect(result.result(for: .saveOriginal)?.outcome == .failed)
+        #expect(result.result(for: .saveOriginal)?.error?.contains("can't be read") == true)
+        #expect(result.result(for: .wallpaper)?.outcome == .notAttempted)
+        #expect(try String(contentsOf: dir.paths.snapshotFile, encoding: .utf8) == "{ not json")
+
+        // Settings still offers Restore, which then says why it can't.
+        #expect(applier.hasOriginalSnapshot)
+        await #expect(throws: SnapshotUnreadableError.self) { try await applier.restoreOriginal() }
+        #expect(backend.calls.isEmpty)
     }
 }
 

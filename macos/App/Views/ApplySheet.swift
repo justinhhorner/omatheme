@@ -9,6 +9,13 @@ struct ApplyTarget: Identifiable {
     let wallpaperFile: String?
 }
 
+/// What the Apply sheet returns: the per-aspect choices, and whether to make them the one-click
+/// defaults (`DesktopStore.apply` saves them; the sheet doesn't write settings itself).
+struct ApplyChoices {
+    var options: ApplyOptions
+    var remember: Bool
+}
+
 /// Per-aspect Apply choices. macOS only lets apps set the wallpaper, so light/dark and accent are
 /// shown disabled with the reason (and a way to change them in System Settings).
 struct ApplySheet: View {
@@ -18,7 +25,7 @@ struct ApplySheet: View {
 
     let theme: InstalledTheme
     let wallpaperFile: String?
-    let onApply: (ApplyOptions) -> Void
+    let onApply: (ApplyChoices) -> Void
 
     @State private var setWallpaper = true
     @State private var fit = WallpaperFit.fill
@@ -134,10 +141,9 @@ struct ApplySheet: View {
                 .keyboardShortcut(.cancelAction)
                 .accessibilityIdentifier("applySheetCancel")
             Button("Apply") {
-                let options = self.options
-                if remember { preferences.update { $0.applyDefaults = options } }
+                let choices = ApplyChoices(options: options, remember: remember)
                 dismiss()
-                onApply(options)
+                onApply(choices)
             }
             .keyboardShortcut(.defaultAction)
             .disabled(!(canWallpaper && setWallpaper))

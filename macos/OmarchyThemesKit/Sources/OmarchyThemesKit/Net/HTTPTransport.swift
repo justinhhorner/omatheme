@@ -21,8 +21,6 @@ public struct URLSessionTransport: HTTPTransport {
 }
 
 public enum HTTPSessions {
-    public static let userAgent = "OmarchyThemes/0.1 (+https://github.com/basecamp/omarchy)"
-
     /// A session with URLSession's own cache turned off: `HTTPCache` does ETag revalidation itself
     /// and needs to see real 304s.
     public static func make(
@@ -34,7 +32,7 @@ public enum HTTPSessions {
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = requestTimeout
         configuration.timeoutIntervalForResource = resourceTimeout
-        configuration.httpAdditionalHeaders = ["User-Agent": userAgent]
+        configuration.httpAdditionalHeaders = ["User-Agent": AppInfo.userAgent]
         return URLSession(configuration: configuration)
     }
 }

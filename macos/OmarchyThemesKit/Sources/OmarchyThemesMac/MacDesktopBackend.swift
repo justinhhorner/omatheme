@@ -41,26 +41,39 @@ public final class MacDesktopBackend: DesktopBackend {
         let encoder = JSONFile.makeEncoder()
 
         // Keep a private copy of each original wallpaper: the user may delete or move the file
-        // later, and Restore should still work.
+        // later, and Restore should still work. The copies go to a staging folder that replaces the
+        // previous ones only once they're all made, so a failed capture doesn't lose them.
         let fm = FileManager.default
-        try fm.removeItemIfPresent(at: snapshotAssetsDir)
-        var copies: [URL: URL] = [:]
-        for (index, screen) in screens.enumerated() {
-            values[Self.urlPrefix + screen.screenID] = screen.imageURL?.path ?? ""
-            values[Self.optionsPrefix + screen.screenID] = String(decoding: try encoder.encode(screen.options), as: UTF8.self)
+        let staging = snapshotAssetsDir.deletingLastPathComponent()
+            .appending(path: snapshotAssetsDir.lastPathComponent + ".new", directoryHint: .isDirectory)
+        try fm.removeItemIfPresent(at: staging)
+        do {
+            var copies: [URL: URL] = [:]
+            for (index, screen) in screens.enumerated() {
+                values[Self.urlPrefix + screen.screenID] = screen.imageURL?.path ?? ""
+                values[Self.optionsPrefix + screen.screenID] = String(decoding: try encoder.encode(screen.options), as: UTF8.self)
 
-            guard let url = screen.imageURL, Self.needsCopy(url) else { continue }
-            let copy: URL
-            if let existing = copies[url] {
-                copy = existing
-            } else {
-                try fm.createDirectory(at: snapshotAssetsDir, withIntermediateDirectories: true)
-                let ext = url.pathExtension.isEmpty ? "" : ".\(url.pathExtension)"
-                copy = snapshotAssetsDir.appending(path: "\(index)\(ext)")
-                try fm.copyItem(at: url, to: copy)
-                copies[url] = copy
+                guard let url = screen.imageURL, Self.needsCopy(url) else { continue }
+                let copy: URL
+                if let existing = copies[url] {
+                    copy = existing
+                } else {
+                    let fileName = "\(index)" + (url.pathExtension.isEmpty ? "" : ".\(url.pathExtension)")
+                    try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+                    try fm.copyItem(at: url, to: staging.appending(path: fileName))
+                    copy = snapshotAssetsDir.appending(path: fileName)
+                    copies[url] = copy
+                }
+                values[Self.copyPrefix + screen.screenID] = copy.path
             }
-            values[Self.copyPrefix + screen.screenID] = copy.path
+
+            try fm.removeItemIfPresent(at: snapshotAssetsDir)
+            if fm.fileExists(atPath: staging.path) {
+                try fm.moveItem(at: staging, to: snapshotAssetsDir)
+            }
+        } catch {
+            try? fm.removeItemIfPresent(at: staging)
+            throw error
         }
 
         return DesktopSnapshot(takenAt: now(), values: values)

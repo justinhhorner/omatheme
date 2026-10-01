@@ -29,10 +29,10 @@ section with the `lastAppliedWallpaper` fix, terminal colors (see below) and a m
 As of Sep 29, 2026 the Windows code review (done on the Mac) is finished, and its file was deleted. Windows
 now has tested stores like macOS (`windows/src/OmarchyThemes.Stores`), and the review's bug fixes are in.
 
-**Pending for macOS (read this first on the Mac):** `docs/windows-to-macos.md`: an unreadable
-`original-desktop.json` being overwritten (the same bug fixed on Windows), dropping
-`OMARCHY_THEMES_GITHUB_TOKEN` (the user chose `GITHUB_TOKEN` only), one User-Agent from the version, and
-the Apply sheet saving settings from the view.
+As of Oct 1, 2026 macOS has the Windows review's follow-ups too: an unreadable `original-desktop.json` is
+never overwritten (and the private wallpaper copies are staged), the token comes from `GITHUB_TOKEN` only,
+one User-Agent built from the app version (`AppInfo`), and the Apply sheet no longer saves settings itself.
+`docs/windows-to-macos.md` was deleted once empty. Nothing is pending on either platform.
 
 ## Decisions already made (don't reopen)
 
@@ -175,7 +175,7 @@ What was built, per the confirmed plan. See README "Building on macOS" and `docs
   target `OmarchyThemesMac` holds `MacDesktopBackend` behind a fake-able `WallpaperAPI` (mirrors
   Platform.Windows); target `OmarchyThemesStores` holds the app's logic as observable stores built from an
   injectable `AppServices`; `OmarchyThemesTestSupport` has the shared fakes and fixtures (read from root
-  `fixtures/` via `#filePath`). Tests: 114 Kit + 36 Mac (4 of them opt-in live checks) + 28 stores, Swift Testing.
+  `fixtures/` via `#filePath`). Tests: 117 Kit + 37 Mac (4 of them opt-in live checks) + 31 stores, Swift Testing.
 - `macos/App`: SwiftUI views plus a thin `AppModel` (the stores, the thumbnail loader, navigation). Views take
   the stores they use from the environment (`appEnvironment`); put new logic in a store, with a test, not in a view.
 - `macos/project.yml` → `xcodegen` → `OmarchyThemes.xcodeproj` (ignored). Bundle id

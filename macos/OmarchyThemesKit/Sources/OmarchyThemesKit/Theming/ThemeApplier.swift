@@ -18,7 +18,15 @@ public final class ThemeApplier: Sendable {
 
     public var supportedFits: [WallpaperFit] { backend.supportedFits }
 
-    public var hasOriginalSnapshot: Bool { snapshots.load() != nil }
+    /// True when a snapshot was saved, including one that can't be read: Settings still offers
+    /// Restore, which then says why it can't.
+    public var hasOriginalSnapshot: Bool {
+        do {
+            return try snapshots.load() != nil
+        } catch {
+            return true
+        }
+    }
 
     public func apply(_ request: ApplyRequest, progress: (@Sendable (ApplyStep) -> Void)? = nil) async throws -> ApplyResult {
         try Task.checkCancellation()
@@ -26,17 +34,24 @@ public final class ThemeApplier: Sendable {
             var results: [StepResult] = []
 
             progress?(.saveOriginal)
-            if snapshots.load() == nil {
+            let saved: DesktopSnapshot?
+            do {
+                saved = try snapshots.load()
+            } catch {
+                // Saving now would replace the user's original with a desktop we may already have themed.
+                return Self.nothingChanged(
+                    "\(error.localizedDescription) Nothing was changed, so it isn't overwritten. "
+                        + "To save your current desktop instead, delete that file.")
+            }
+            if saved == nil {
                 do {
                     try snapshots.save(try await backend.capture())
                     results.append(StepResult(.saveOriginal, .applied))
                 } catch {
                     if error is CancellationError { throw error }
                     // Without a snapshot we couldn't undo, so change nothing.
-                    let message = "Couldn't save your current desktop, so nothing was changed. \(error.localizedDescription)"
-                    results.append(StepResult(.saveOriginal, .failed, error: message))
-                    results += [ApplyStep.wallpaper, .appearanceMode, .accentColor].map { StepResult($0, .notAttempted) }
-                    return ApplyResult(steps: results)
+                    return Self.nothingChanged(
+                        "Couldn't save your current desktop, so nothing was changed. \(error.localizedDescription)")
                 }
             }
 
@@ -65,6 +80,12 @@ public final class ThemeApplier: Sendable {
         }
     }
 
+    /// The original desktop couldn't be secured, so no step ran.
+    private static func nothingChanged(_ message: String) -> ApplyResult {
+        ApplyResult(steps: [StepResult(.saveOriginal, .failed, error: message)]
+            + [ApplyStep.wallpaper, .appearanceMode, .accentColor].map { StepResult($0, .notAttempted) })
+    }
+
     private func runStep(
         _ step: ApplyStep, enabled: Bool, capability: DesktopCapabilities, hasData: Bool,
         progress: (@Sendable (ApplyStep) -> Void)?, action: () async throws -> Void
@@ -85,10 +106,11 @@ public final class ThemeApplier: Sendable {
         }
     }
 
-    /// Puts back the desktop saved before the first Apply, then forgets the snapshot.
+    /// Puts back the desktop saved before the first Apply, then forgets the snapshot. Throws
+    /// `SnapshotUnreadableError` (leaving the file alone) if the snapshot can't be read.
     public func restoreOriginal() async throws -> Bool {
         try await gate.withLock {
-            guard let snapshot = snapshots.load() else { return false }
+            guard let snapshot = try snapshots.load() else { return false }
             try await backend.restore(snapshot)
             try snapshots.clear()
             return true

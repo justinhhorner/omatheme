@@ -50,9 +50,10 @@ struct DownloadedView: View {
         .navigationTitle("Downloaded")
         .navigationSubtitle(subtitle)
         .sheet(item: $applyTarget) { target in
-            ApplySheet(theme: target.theme, wallpaperFile: target.wallpaperFile) { options in
+            ApplySheet(theme: target.theme, wallpaperFile: target.wallpaperFile) { choices in
                 Task {
-                    let summary = await desktop.apply(target.theme, wallpaperFile: target.wallpaperFile, options: options)
+                    let summary = await desktop.apply(
+                        target.theme, wallpaperFile: target.wallpaperFile, options: choices.options, rememberOptions: choices.remember)
                     banners[.downloaded] = Banner(summary)
                 }
             }

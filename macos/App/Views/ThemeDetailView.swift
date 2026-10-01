@@ -95,8 +95,8 @@ struct ThemeDetailView: View {
             if !names.indices.contains(selectedWallpaper) { selectedWallpaper = 0 }
         }
         .sheet(item: $applyTarget) { target in
-            ApplySheet(theme: target.theme, wallpaperFile: target.wallpaperFile) { options in
-                Task { await apply(target, options: options) }
+            ApplySheet(theme: target.theme, wallpaperFile: target.wallpaperFile) { choices in
+                Task { await apply(target, choices: choices) }
             }
         }
         .confirmationDialog("Remove \(entry.name)?", isPresented: $confirmRemove) {
@@ -340,11 +340,12 @@ struct ThemeDetailView: View {
         withAnimation(.easeOut(duration: 0.15)) { previewIndex = index }
     }
 
-    private func apply(_ target: ApplyTarget, options: ApplyOptions) async {
+    private func apply(_ target: ApplyTarget, choices: ApplyChoices) async {
         if let file = target.wallpaperFile, let index = target.theme.wallpapers.firstIndex(of: file) {
             selectedWallpaper = index
         }
-        let summary = await desktop.apply(target.theme, wallpaperFile: target.wallpaperFile, options: options)
+        let summary = await desktop.apply(
+            target.theme, wallpaperFile: target.wallpaperFile, options: choices.options, rememberOptions: choices.remember)
         banners[.theme(entry.slug)] = Banner(summary)
     }
 }

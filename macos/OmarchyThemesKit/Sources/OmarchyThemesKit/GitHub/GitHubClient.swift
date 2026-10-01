@@ -80,7 +80,7 @@ public struct GitHubClient: Sendable {
             maxAge: Self.freshFor,
             configureRequest: { request in
                 // GitHub rejects API requests without a User-Agent.
-                request.setValue(HTTPSessions.userAgent, forHTTPHeaderField: "User-Agent")
+                request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
                 request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
                 request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
                 if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }

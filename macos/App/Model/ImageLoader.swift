@@ -13,7 +13,7 @@ final class ImageLoader: Sendable {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20, directory: cacheDirectory)
         configuration.requestCachePolicy = .returnCacheDataElseLoad
-        configuration.httpAdditionalHeaders = ["User-Agent": HTTPSessions.userAgent]
+        configuration.httpAdditionalHeaders = ["User-Agent": AppInfo.userAgent]
         session = URLSession(configuration: configuration)
     }
 

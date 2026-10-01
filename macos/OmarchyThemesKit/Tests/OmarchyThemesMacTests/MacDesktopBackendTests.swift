@@ -113,6 +113,21 @@ struct MacDesktopBackendTests {
         #expect(NSWorkspaceWallpaperAPI.dictionary(from: WallpaperOptions()).isEmpty)
     }
 
+    /// Mirrors the Windows `A_failed_capture_keeps_the_previous_wallpaper_copies`.
+    @Test func aFailedCaptureKeepsThePreviousWallpaperCopies() async throws {
+        let copies = temp.url.appending(path: "original-desktop")
+        try FileManager.default.createDirectory(at: copies, withIntermediateDirectories: true)
+        try Data([9]).write(to: copies.appending(path: "0.jpg"))
+        // The original can't be read, so copying it fails.
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: original.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: original.path) }
+
+        await #expect(throws: (any Error).self) { try await backend.capture() }
+
+        #expect(FileManager.default.contents(atPath: copies.appending(path: "0.jpg").path) == Data([9]))
+        #expect(!FileManager.default.fileExists(atPath: copies.path + ".new"))
+    }
+
     @Test func captureRecordsEveryScreenAndCopiesEachOriginalOnce() async throws {
         let snapshot = try await backend.capture()
 
