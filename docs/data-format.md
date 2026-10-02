@@ -1,12 +1,12 @@
 # Data format
 
-Both apps (and any future client, such as the Rust CLI) read and write the **same** files in the data
-folder. This document is the contract. `fixtures/data/` holds a sample of each file, and both test suites
-check that their app writes exactly that (as JSON: same keys, types and values) and reads it back, so the
-apps can't drift apart.
+Both apps and the command-line tool (`cli/`) read and write the **same** files in the data folder.
+This document is the contract. `fixtures/data/` holds a sample of each file, and every client's test suite
+checks that it writes exactly that (as JSON: same keys, types and values) and reads it back, so the
+clients can't drift apart.
 
 Data folder: `%LOCALAPPDATA%\OmarchyThemes` (Windows), `~/Library/Application Support/OmarchyThemes`
-(macOS), or `OMARCHY_THEMES_DATA_DIR` when set.
+(macOS), `$XDG_DATA_HOME/omarchy-themes` (the CLI on other OSes), or `OMARCHY_THEMES_DATA_DIR` when set.
 
 ```
 settings.json           app settings
@@ -82,11 +82,11 @@ The body is stored next to it as `<sha256>.body`.
 
 ## Older files
 
-Before this format existed, the apps wrote slightly different JSON. Both still read it:
+Before this format existed, the apps wrote slightly different JSON. Every client still reads it:
 
 | Written by | Differences |
 |---|---|
 | Windows (v0.1) | `null` for absent values; a derived `mode` inside `palette` and an absolute `screenshotPath` in `theme.json` (both ignored); dates like `…09:00:00.1234567+00:00`; cache `eTag` and `lastModified` as an ISO date. |
 | macOS (v0.1) | `repoURL` instead of `repoUrl`; dates without a time zone (`…09:00:00.123`, which meant UTC). |
 
-`fixtures/data/legacy/` has an example of each, and both test suites read them.
+`fixtures/data/legacy/` has an example of each, and every test suite reads them.

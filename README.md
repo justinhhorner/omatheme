@@ -18,6 +18,8 @@
   &nbsp;·&nbsp;
   <a href="#building-on-macos">Build for macOS</a>
   &nbsp;·&nbsp;
+  <a href="#command-line-omatheme">Command line</a>
+  &nbsp;·&nbsp;
   <a href="docs/ARCHITECTURE.md">How it works</a>
 </p>
 
@@ -33,6 +35,7 @@ A native desktop companion for [Omarchy Themes](https://omarchy.org/themes/).
 |---|---|---|
 | Windows 10 (19041+) / 11 | WinUI 3 · Windows App SDK 2.5 · .NET 10 | Working v0.1 (`windows/`) |
 | macOS 14+ | SwiftUI · Swift 6 · XcodeGen | Working v0.1 (`macos/`) |
+| Command line: macOS, Windows (list, download and terminal colors on Linux too) | Rust | Working v0.1 (`cli/`) |
 
 ## Building on Windows
 
@@ -56,6 +59,27 @@ cd macos
 xcodegen                              # generates OmarchyThemes.xcodeproj
 xcodebuild -scheme OmarchyThemes -derivedDataPath build/DerivedData build
 cd OmarchyThemesKit && swift test
+```
+
+## Command line (`omatheme`)
+
+Requirements: [Rust](https://rustup.rs) (stable). It shares the app's data folder, so themes downloaded
+in one show up in the other.
+
+```bash
+cd cli
+cargo build --release                 # target/release/omatheme
+cargo test
+```
+
+```bash
+omatheme tui                          # browse, preview and apply in a full-screen interface
+omatheme list --search tokyo
+omatheme show tokyo-night
+omatheme apply tokyo-night --wallpaper 2
+omatheme wallpaper next
+omatheme terminal add tokyo-night
+omatheme restore
 ```
 
 ## How it works

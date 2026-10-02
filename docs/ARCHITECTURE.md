@@ -1,11 +1,12 @@
 # Omarchy Themes: architecture and development
 
-How the two apps are built, how they read Omarchy's themes and apply them, and how they're tested.
-For what the app is and how to build it, see the [README](../README.md).
+How the two apps and the command-line tool are built, how they read Omarchy's themes and apply them,
+and how they're tested. For what the app is and how to build it, see the [README](../README.md).
 
 Each platform is its own native codebase so it can follow that OS's conventions (Mica + Fluent
 `NavigationView` on Windows; sidebar, vibrancy and traffic lights on macOS) and call the real
-desktop-theming APIs directly.
+desktop-theming APIs directly. The command-line tool (`omatheme`, Rust) does what both apps do from a
+terminal, on either OS, and shares their data.
 
 ## Repository layout
 
@@ -33,6 +34,9 @@ macos/
     Sources/OmarchyThemesTestSupport/  fakes and fixtures shared by the tests
     Tests/                         Swift Testing: Kit, backend and stores, all against fakes
   tools/generate-app-icon.swift    renders the asset-catalog icon set from design/AppIcon.svg
+cli/                               Rust command-line tool (omatheme), one crate: library + thin binary
+  src/                             catalog, GitHub, palettes, store, theming, platform/ (both backends), terminals/, cli/
+  tests/live.rs                    opt-in live checks
 fixtures/                          test fixtures shared by the Windows and Swift tests
 docs/ARCHITECTURE.md               this file
 docs/screenshots/                  README screenshots
@@ -49,6 +53,9 @@ Both apps read the same environment variables:
 |---|---|
 | `OMARCHY_THEMES_DRY_RUN=1` | Swaps in a backend that reports the platform's capabilities but changes nothing, so Apply and Restore can be exercised end to end without touching the desktop. The window shows a "Dry run" badge (on Windows, in the title bar). Terminal color exports stay in the data folder too: on Windows, Windows Terminal schemes; on macOS, iTerm2 and Ghostty files go to `dry-run-home/` there, and Terminal.app isn't opened. |
 | `OMARCHY_THEMES_DATA_DIR=<path>` | Uses another data folder instead of `%LOCALAPPDATA%\OmarchyThemes` / `~/Library/Application Support/OmarchyThemes` (fresh first launch, no risk to real downloads or the saved original desktop). |
+
+The command-line tool reads both too, and has `--dry-run` and `--data-dir <path>` flags that do the same
+(see [Architecture (command line)](#architecture-command-line)).
 
 Use both whenever the UI is driven by a script, for example on Windows:
 
@@ -316,6 +323,109 @@ Known limitations:
 5. Add tests: a `ThemeApplier` test with the fake backend, and a `WindowsDesktopBackendTests`
    case asserting exactly which values are written.
 
+## Architecture (command line)
+
+`omatheme` is one Rust crate in `cli/`: a library with all the logic (tested with `cargo test`, no
+network or OS changes) and a thin `main.rs`. It ports the Kit/Core behaviour, not the code:
+
+| Module | What it holds |
+|---|---|
+| `catalog`, `github`, `net`, `resolver` | The omarchy.org parser (`scraper`), Omarchy's default themes, the ETag disk cache over a `Transport` trait (ureq, or a routing fake in tests), the one-call-per-theme GitHub client, theme resolution |
+| `palette` | Both `colors.toml` shapes and `alacritty.toml` (the `toml` crate, falling back to the same lenient line scanner), `TerminalColors` |
+| `store` | `theme.json`/`settings.json` in the shared format, the staged theme store (the Windows app's rename-aside reinstall and removal), the streaming downloader |
+| `theming` | `DesktopBackend`, `ThemeApplier`, `ApplySummary`, the snapshot stores, Windows accent math, the dry-run backend |
+| `platform` | Both OS backends: `mac.rs` and `windows.rs` hold each backend's logic behind small traits (wallpaper API, registry, broadcast, image conversion) and are compiled and tested on every OS; `mac_native.rs` (objc2: NSWorkspace, NSKeyedArchiver, read-only NSUserDefaults) and `windows_native.rs` (`windows` crate: IDesktopWallpaper on the main thread as an STA, HKCU registry, `SendMessageTimeout`) are the only `cfg`-gated code |
+| `terminals` | `TerminalExporter` and its registry (`terminals::all`): Windows Terminal on Windows; iTerm2, Ghostty and Terminal.app on macOS; Ghostty elsewhere. Same files, names and messages as the apps |
+| `cli` | clap arguments, the context (data folder, switches, services), theme-argument matching, output, one module per command group, and `cli/tui` (the full-screen interface) |
+
+Commands:
+
+```
+omatheme list [--search TEXT] [--downloaded] [--default | --community] [--refresh] [--json]
+omatheme show <THEME> [--json]
+omatheme download <THEME>... [--force]
+omatheme apply <THEME> [--wallpaper N|NAME] [--fit FIT] [--no-wallpaper] [--mode|--no-mode]
+                       [--accent|--no-accent] [--yes] [--json]
+omatheme current [--json]
+omatheme wallpaper <N|NAME|next|prev> [--fit FIT] [--yes] [--json]
+omatheme restore [--yes] [--json]
+omatheme remove <THEME> [--yes]
+omatheme terminal apps [--json] | add <THEME> [--app ID] | remove <THEME> [--app ID]
+omatheme cache clear
+omatheme paths [--json]
+omatheme tui                        # alias: ui
+```
+
+Global flags: `--dry-run`, `--data-dir <path>`. `<THEME>` is a slug, a name, a default theme's folder
+name (`tokyo-night`), or a unique start of any of them; an exact slug wins, then an exact name, then a
+prefix, and ambiguous input lists the candidates. Exit codes: 0 success, 1 failure, 2 usage (including
+an ambiguous theme or a missing `--yes`), 3 partly applied.
+
+- **Catalog:** a cached catalog younger than 12 hours (with default themes) is used without a request,
+  as the apps do on launch; otherwise, or with `list --refresh`, it's revalidated, falling back to the
+  cache. Downloaded themes the catalog doesn't list are still listed and can be named.
+- **Apply:** starts from the app's one-click defaults (`applyDefaults` in settings.json), changed by the
+  flags; the fit must be one this OS supports (a saved Tile/Span falls back to Fill on macOS). It shows
+  what will change and asks on a terminal; without one it refuses unless `--yes`. Each step's outcome
+  is listed with the apps' `ApplySummary` wording, and `lastAppliedSlug`/`lastAppliedWallpaper` are
+  updated with `AfterApply`. `wallpaper` is the Current Theme card's wallpaper switch (wallpaper only,
+  saved fit). `apply` downloads the theme first if needed.
+- **Output:** human-readable by default, `--json` for scripts; colors (and truecolor swatches) only on
+  a terminal, never with `NO_COLOR`; progress (bytes, per file) on stderr only when it's a terminal.
+  The first Ctrl-C stops a download between chunks (the staging folder is deleted); a second quits.
+- **TLS:** the OS's own stack on macOS and Windows (ureq's `native-tls`: Security.framework, SChannel),
+  so nothing is compiled from C there; rustls elsewhere. WebP and BMP are converted with the `image`
+  crate (so Windows 10 doesn't need Microsoft's WebP extension), into the same place as the app on that
+  OS (`.converted/<name>.png` on macOS, `.<stem>.wallpaper.png` on Windows).
+
+### The TUI (`omatheme tui`)
+
+A full-screen interface with ratatui (crossterm backend): the theme list on the left (Omarchy's own
+first, then the community; ✓ downloaded, ● on the desktop), and on the right the selected theme's
+screenshot (or, when browsing a downloaded theme's wallpapers, the wallpaper under the cursor) drawn
+with `▀` half blocks in truecolor, its colors and terminal colors as swatches, and its wallpapers.
+Keys: `/` search, `o` filter (all, downloaded, Omarchy's, community), `⏎` open, `d` download (progress
+in the footer), `a` apply (a dialog like the apps': each aspect, unsupported ones disabled, the fit),
+`w` or `⏎` on a wallpaper to switch the current theme's wallpaper (asks first), `t` terminal colors,
+`x` remove, `r` restore (asks first), `R` refresh, `?` help, `q` quit.
+
+It's split like the rest of the CLI: `tui/app.rs` is the state and key handling, which returns
+`Effect`s and is tested without a terminal; `tui/view.rs` draws it (tested with ratatui's
+`TestBackend`); `tui/mod.rs` is the runtime that carries out the effects. It reuses the commands'
+logic (`CatalogLoader`, `apply_and_record`, `restore_and_record`, `choose_fit`,
+`preferred_wallpaper`). The catalog, lookups, previews and downloads run on background threads and
+report over a channel, so the screen stays responsive; applying runs on the main thread (AppKit).
+Community themes cost a GitHub API call, so they're looked up on `⏎`; default themes (their tree is
+shared and cached, their files aren't metered) and screenshots load once the selection rests for
+250 ms. Quitting during a download cancels it between chunks and waits, so nothing is left
+half-installed. It needs a terminal (exit 2 otherwise), honours the test switches (with a badge in
+the header), and `NO_COLOR` turns off the swatches and previews.
+
+### Sharing data with the apps
+
+The CLI uses the app's data folder on the same OS (`$XDG_DATA_HOME/omarchy-themes` elsewhere) and
+writes every file exactly as [data-format.md](data-format.md) says, including the HTTP cache, and keeps
+unknown keys when it rewrites `settings.json`. `original-desktop.json` uses that OS's backend keys
+(`screens`/`screen.url.…`/`screen.options.…`/`screen.copy.…` on macOS, `reg:…`/`monitor:…`/
+`monitor-copy:…`/`wallpaper-fit` (the .NET enum name)/`wallpaper-background` on Windows), so either
+client restores what the other saved. It reads `terminalApp` but never writes it (`--app` is per run),
+and never writes `applyDefaults`.
+
+Interrupted downloads (`.staging-`, `.removed-` and `.old-` folders in `themes/`) are tidied up only
+when older than six hours, so the CLI never deletes a download the app is running.
+
+Test switches: `--dry-run`/`OMARCHY_THEMES_DRY_RUN=1` uses a backend that reports this OS's
+capabilities but changes nothing, lists what a real run would have done, and keeps terminal exports in
+the data folder (`dry-run-home/`, and Windows Terminal fragments in `windows-terminal-fragments/` also
+with another data folder, as the Windows app does); nothing is opened. With another data folder it
+behaves like the apps' dry run, so restore can be exercised end to end; **against the real data folder
+it writes neither settings.json nor original-desktop.json**, so a pretend desktop can never replace
+the real one (downloads still go to the data folder, as in the apps). Confirmations are still asked in
+a dry run.
+
+On Linux and other OSes, `apply`, `wallpaper` and `restore` say applying isn't supported there and exit
+1; everything else works (Ghostty is the terminal).
+
 ## Tests
 
 `dotnet test` in `windows/` runs the three suites. No OS state is touched and nothing hits the network.
@@ -411,3 +521,41 @@ failures, and refreshing old downloads' bright colors.
 live site, a few theme repos and this Mac's current desktop. During development they parsed all 146
 themes, resolved Aetheria and Vulkanite (WebP wallpapers, decoded and converted to a 3840×2160 PNG),
 and checked the downloader's byte-level progress.
+
+### Command-line tests
+
+`cargo test` in `cli/` runs the unit tests (249), using the shared `fixtures/` (read from the repo root),
+a routing fake transport, a fake downloader, a recording desktop backend and temp folders. They touch
+no OS state and make no network requests. They mirror the Kit/Core suites case for case: catalog parser,
+default themes, repo links, palettes and the TOML readers (CRLF included), terminal colors (halves round
+to even), HTTP cache and GitHub client (304, max-age, stale offline, rate limit, the token only to the
+API), resolver, theme store (atomic install, cancel and failure leave nothing, a failed swap keeps the
+old copy, removal, cleanup), `ThemeApplier`, `ApplySummary` and `AfterApply`, and the data format against
+`fixtures/data/` (writes the samples, reads every legacy file, keeps unknown settings). Both backends'
+logic is tested on every OS against fakes (`platform::mac` and `platform::windows`: the macOS and
+Windows backend suites' cases, plus restoring a snapshot in the other app's exact format), and the
+exporters against temp folders (`terminals::*`). The CLI layer has tests for theme matching, wallpaper
+choice, fits, the apply flags, filtering and argument parsing (including the credits in `--help`).
+
+The TUI's state and keys (`cli::tui::app`: navigation, search, filters, the dwell before free lookups,
+which preview to show, the apply dialog's defaults and disabled rows, what each confirmation does,
+one download at a time) and its drawing (`cli::tui::view`: sections and markers, colors from disk,
+lookup states, dialogs, download progress, half-block previews, tiny terminals) are unit-tested. The
+real interface was also driven in a pseudo-terminal with the test switches, reading the screen back
+with a terminal emulator (`pyte`): start, search, open, look up, apply, switch wallpaper, terminal
+colors, restore, download, help, and quitting mid-download.
+
+The Windows code is type-checked from a Mac with `cargo clippy --target x86_64-pc-windows-msvc`
+(`rustup target add x86_64-pc-windows-msvc`). Its logic is tested everywhere, but its native layer
+(`platform/windows_native.rs`) hasn't run on a Windows machine yet.
+
+Opt-in live checks (read-only, about three GitHub API calls):
+
+```bash
+OMATHEME_LIVE=1 cargo test -- --ignored --test-threads=1
+```
+
+They parse omarchy.org (146 community themes) and list the default themes (22), resolve Tokyo Night and
+Vulkanite, download a WebP wallpaper checking progress in bytes ends at the file size and that it
+converts to a 3840×2160 PNG, and read (never set) the current wallpaper through the built binary, since
+AppKit wants the main thread.
