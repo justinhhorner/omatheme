@@ -6,11 +6,15 @@
 # Usage (PowerShell 7 on Windows, from anywhere):
 #   ./windows/tools/Publish-App.ps1 -Runtime win-x64 -OutputDir dist
 #   ./windows/tools/Publish-App.ps1 -Runtime win-arm64 -OutputDir dist
+#
+# -SmokeTest launches the published app (dry run, scratch data folder: nothing on the machine changes)
+# and fails if it exits within 20 seconds or logs a critical error. Only for the host's architecture.
 #Requires -Version 7
 param(
     [ValidateSet('win-x64', 'win-arm64')]
     [string]$Runtime = 'win-x64',
-    [string]$OutputDir = 'dist'
+    [string]$OutputDir = 'dist',
+    [switch]$SmokeTest
 )
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
@@ -37,10 +41,11 @@ try {
         -p:Platform=$platform `
         --output $appDir
 
-    # What the app can't start without: the exe, the WinUI resources index and the Windows App SDK runtime.
-    foreach ($pattern in 'OmarchyThemes.exe', '*.pri', 'Microsoft.WindowsAppRuntime*.dll', 'Microsoft.UI.Xaml*.dll') {
-        if (-not (Get-ChildItem -Path $appDir -Filter $pattern -File)) {
-            throw "The publish output has no $pattern"
+    # What the app can't start without: the exe, its own PRI (its compiled XAML; the Windows App SDK's
+    # .pri files don't count) and the Windows App SDK runtime.
+    foreach ($file in 'OmarchyThemes.exe', 'OmarchyThemes.pri', 'Microsoft.WindowsAppRuntime.dll', 'Microsoft.UI.Xaml.dll') {
+        if (-not (Test-Path (Join-Path $appDir $file) -PathType Leaf)) {
+            throw "The publish output has no $file"
         }
     }
     $exe = Get-Item (Join-Path $appDir 'OmarchyThemes.exe')
@@ -49,6 +54,28 @@ try {
     }
     # Debug symbols stay out of the download.
     Get-ChildItem -Path $appDir -Filter '*.pdb' -Recurse | Remove-Item
+
+    if ($SmokeTest) {
+        # A scratch folder outside the app folder, so nothing it writes ends up in the zip.
+        $data = Join-Path $staging 'smoke-test-data'
+        $env:OMARCHY_THEMES_DRY_RUN = '1'
+        $env:OMARCHY_THEMES_DATA_DIR = $data
+        try {
+            $process = Start-Process -FilePath $exe.FullName -PassThru
+            Start-Sleep -Seconds 20
+            $running = -not $process.HasExited
+            if ($running) { Stop-Process -Id $process.Id -Force }
+        }
+        finally {
+            Remove-Item Env:OMARCHY_THEMES_DRY_RUN, Env:OMARCHY_THEMES_DATA_DIR -ErrorAction SilentlyContinue
+        }
+        $log = Get-ChildItem -Path (Join-Path $data 'logs') -Filter '*.log' -ErrorAction SilentlyContinue |
+            Get-Content -Raw
+        if ($log) { Write-Host "App log:`n$log" }
+        if (-not $running) { throw "OmarchyThemes.exe exited during startup (exit code $($process.ExitCode))" }
+        if ($log -match '\[Critical\]') { throw 'OmarchyThemes.exe logged a critical error during startup' }
+        Write-Host 'Smoke test passed: the app started and kept running.'
+    }
 
     if (Test-Path $zip) { Remove-Item $zip }
     Compress-Archive -Path $appDir -DestinationPath $zip -CompressionLevel Optimal

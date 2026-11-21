@@ -31,6 +31,22 @@
     <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- `dotnet publish` leaves out the app's PRI (OmarchyThemes.pri: its resources and, in Release, its
+       compiled XAML), so a published app can't load its pages. The MSIX tooling publishes it
+       (AddProjectPriToResolvedFileToPublish), but that tooling is off in an unpackaged app, where MRT Core
+       only writes the PRI to the build output. This adds it the same way. -->
+  <Target Name="PublishProjectPri" AfterTargets="ComputeResolvedFilesToPublishList"
+          Condition="'$(EnableMsixTooling)' != 'true'">
+    <Error Condition="'$(ProjectPriFullPath)' == '' Or !Exists('$(ProjectPriFullPath)')"
+           Text="No PRI to publish (ProjectPriFullPath='$(ProjectPriFullPath)')." />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(ProjectPriFullPath)">
+        <RelativePath>$(ProjectPriFileName)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />

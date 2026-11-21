@@ -73,6 +73,9 @@ jobs:
         run: dotnet build OmarchyThemes.sln
       - name: Test
         run: dotnet test OmarchyThemes.sln --no-build
+      - name: Publish as a release does, and start it
+        shell: pwsh
+        run: ./tools/Publish-App.ps1 -Runtime win-x64 -OutputDir "$env:RUNNER_TEMP/publish" -SmokeTest
 
   cli:
     name: CLI (${{ matrix.os }})

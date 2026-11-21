@@ -197,7 +197,7 @@ jobs:
           dotnet-version: 10.0.x
       - name: Build the app (x64)
         shell: pwsh
-        run: ./windows/tools/Publish-App.ps1 -Runtime win-x64 -OutputDir dist
+        run: ./windows/tools/Publish-App.ps1 -Runtime win-x64 -OutputDir dist -SmokeTest
       - name: Build the app (ARM64)
         shell: pwsh
         run: ./windows/tools/Publish-App.ps1 -Runtime win-arm64 -OutputDir dist
