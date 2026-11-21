@@ -1,0 +1,295 @@
+# Creates a GitHub release with every client built for download. Two ways to start one:
+#
+#   - Actions → Release → Run workflow (on main), with "patch", "minor", "major" or a version such as
+#     1.2.0 or 1.2.0-beta.1. CI runs first; then the version is written to every client
+#     (scripts/version.sh), committed to main as "Release vX.Y.Z" and tagged.
+#   - Push a tag yourself (`scripts/version.sh set …`, commit, `git tag -a vX.Y.Z`, push both). The
+#     tag must match the version in the files.
+#
+# Either way the clients are built from the tag, and the release gets:
+#   OmarchyThemes-X.Y.Z-macos.dmg                   macOS app (universal)
+#   OmarchyThemes-X.Y.Z-windows-{x64,arm64}.zip     Windows app (unpackaged, self-contained)
+#   omatheme-X.Y.Z-{macos-universal,linux-x64}.tar.gz, omatheme-X.Y.Z-windows-{x64,arm64}.zip
+#   SHA256SUMS.txt
+#
+# macOS signing and notarization are optional; see docs/RELEASING.md for the secrets.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: patch, minor, major, or a version such as 1.2.0 or 1.2.0-beta.1
+        required: true
+        default: patch
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  CARGO_TERM_COLOR: always
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: plan
+        name: Work out the version
+        env:
+          SPEC: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            if [[ "$GITHUB_REF_NAME" != main ]]; then
+              echo "::error::Start a release from main (this run is on $GITHUB_REF_NAME)."
+              exit 1
+            fi
+            version="$(scripts/version.sh next "$SPEC")"
+            if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+              echo "::error::v$version already exists."
+              exit 1
+            fi
+          else
+            version="${GITHUB_REF_NAME#v}"
+            scripts/version.sh check "$version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "### Releasing v$version" >> "$GITHUB_STEP_SUMMARY"
+
+  ci:
+    name: CI
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.sha }}
+
+  tag:
+    name: Commit and tag
+    needs: [plan, ci]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Write the version, commit and tag
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          scripts/version.sh set "$VERSION"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --all --message "Release $TAG"
+          git tag --annotate "$TAG" --message "Omarchy Themes $VERSION"
+          # Fails (and releases nothing) if main moved since this run started.
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$TAG"
+
+  macos:
+    name: macOS app and CLI
+    needs: [plan, tag]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: macos-latest
+    timeout-minutes: 60
+    outputs:
+      signed: ${{ steps.signing.outputs.signed }}
+      notarized: ${{ steps.notary.outputs.notarized }}
+    env:
+      MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+      MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+      MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+      MACOS_NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+      - name: Tools
+        run: |
+          xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release.candidate|_rc' | sort -V | tail -1)"
+          sudo xcode-select --switch "$xcode"
+          xcodebuild -version
+          brew install xcodegen
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - id: signing
+        name: Import the Developer ID certificate
+        run: |
+          if [[ -z "$MACOS_CERTIFICATE_P12" ]]; then
+            echo "No MACOS_CERTIFICATE_P12 secret: building ad-hoc signed."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -base64 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | sed -nE 's/.*"(Developer ID Application:[^"]+)".*/\1/p' | head -1)"
+          if [[ -z "$identity" ]]; then
+            echo "::error::MACOS_CERTIFICATE_P12 holds no Developer ID Application identity."
+            exit 1
+          fi
+          echo "MACOS_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "MACOS_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+      - id: notary
+        name: Notary key
+        run: |
+          if [[ -n "$MACOS_NOTARY_KEY" && -n "$MACOS_SIGN_IDENTITY" ]]; then
+            printf '%s' "$MACOS_NOTARY_KEY" > "$RUNNER_TEMP/notary-key.p8"
+            echo "MACOS_NOTARY_KEY_PATH=$RUNNER_TEMP/notary-key.p8" >> "$GITHUB_ENV"
+            echo "notarized=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "notarized=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the app
+        run: scripts/build-macos-app.sh dist
+      - name: Build the CLI
+        run: scripts/package-cli.sh macos-universal dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove the signing keychain
+        if: always()
+        run: |
+          [[ -n "${MACOS_KEYCHAIN:-}" ]] && security delete-keychain "$MACOS_KEYCHAIN" || true
+          rm -f "$RUNNER_TEMP/notary-key.p8"
+
+  windows:
+    name: Windows app and CLI
+    needs: [plan, tag]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Build the app (x64)
+        shell: pwsh
+        run: ./windows/tools/Publish-App.ps1 -Runtime win-x64 -OutputDir dist
+      - name: Build the app (ARM64)
+        shell: pwsh
+        run: ./windows/tools/Publish-App.ps1 -Runtime win-arm64 -OutputDir dist
+      - name: Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build the CLI (x64)
+        shell: bash
+        run: scripts/package-cli.sh windows-x64 dist
+      - name: Build the CLI (ARM64)
+        shell: bash
+        run: scripts/package-cli.sh windows-arm64 dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Linux CLI
+    needs: [plan, tag]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+      - name: Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Build the CLI
+        run: scripts/package-cli.sh linux-x64 dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish the release
+    needs: [plan, macos, windows, linux]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          MAC_NOTARIZED: ${{ needs.macos.outputs.notarized }}
+        run: |
+          {
+            echo "## Downloads"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **macOS 14+** app (Apple silicon and Intel) | \`OmarchyThemes-$VERSION-macos.dmg\` |"
+            echo "| **Windows 10 (19041+) / 11** app | \`OmarchyThemes-$VERSION-windows-x64.zip\` or \`…-arm64.zip\` |"
+            echo "| \`omatheme\` command line | \`omatheme-$VERSION-<platform>.tar.gz\` / \`.zip\` |"
+            echo
+            echo "The Windows app needs no installer: unzip it anywhere and run \`OmarchyThemes.exe\`."
+            echo "It isn't code-signed, so SmartScreen may ask first (More info → Run anyway)."
+            if [[ "$MAC_NOTARIZED" != true ]]; then
+              echo
+              echo "This macOS build isn't notarized: after the first launch is blocked, open"
+              echo "System Settings → Privacy & Security and choose **Open Anyway**."
+            fi
+            echo
+          } > notes.md
+          prerelease=()
+          [[ "$VERSION" == *-* ]] && prerelease=(--prerelease)
+          gh release create "$TAG" dist/* \
+            --verify-tag \
+            --title "Omarchy Themes $VERSION" \
+            --notes-file notes.md \
+            --generate-notes \
+            ${prerelease[@]+"${prerelease[@]}"}

@@ -14,6 +14,8 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/basecamp/omarchy">Omarchy on GitHub</a>
   &nbsp;·&nbsp;
+  <a href="https://github.com/justinhhorner/omatheme/releases/latest">Download</a>
+  &nbsp;·&nbsp;
   <a href="#building-on-windows">Build for Windows</a>
   &nbsp;·&nbsp;
   <a href="#building-on-macos">Build for macOS</a>
@@ -36,6 +38,9 @@ A native desktop companion for [Omarchy Themes](https://omarchy.org/themes/).
 | Windows 10 (19041+) / 11 | WinUI 3 · Windows App SDK 2.7 · .NET 10 | Working v0.1 (`windows/`) |
 | macOS 14+ | SwiftUI · Swift 6 · XcodeGen | Working v0.1 (`macos/`) |
 | Command line: macOS, Windows (list, download and terminal colors on Linux too) | Rust | Working v0.1 (`cli/`) |
+
+Builds of every client are on the [releases page](https://github.com/justinhhorner/omatheme/releases/latest).
+To make one, see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Building on Windows
 

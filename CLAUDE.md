@@ -65,7 +65,14 @@ with file pointers in `docs/cli-to-apps.md`: age-gated cleanup of interrupted do
   app's data folder and format** on the same OS (same `original-desktop.json` keys as that OS's
   backend), so either client can restore what the other saved. **Done (v0.1).**
 - One monorepo. `design/AppIcon.svg` is the shared icon (original artwork, not the Omarchy logo).
-- GitHub: `justinhhorner/omatheme` (private). Default branch `main`.
+- GitHub: `justinhhorner/omatheme` (public). Default branch `main`.
+- **Releases** (Nov 2026): GitHub Actions only, see `docs/RELEASING.md`. One version for every client,
+  kept in `macos/project.yml`, `windows/Directory.Build.props` and `cli/Cargo.toml`/`Cargo.lock` by
+  `scripts/version.sh` (never edit one by hand). `release.yml` runs CI, commits "Release vX.Y.Z" to
+  `main` and tags it, then builds from the tag with `scripts/build-macos-app.sh`,
+  `scripts/package-cli.sh` and `windows/tools/Publish-App.ps1`, so the scripts are the build: change
+  them, not the workflow, and run them locally to check. macOS Developer ID signing/notarization only
+  runs when the `MACOS_*` secrets exist; otherwise ad-hoc. Windows isn't signed.
 
 ## Rules for working here
 

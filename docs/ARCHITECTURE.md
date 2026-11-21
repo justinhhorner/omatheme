@@ -24,6 +24,7 @@ windows/
   tests/OmarchyThemes.Platform.Windows.Tests/  xUnit, Windows backend against fake registry/COM
   tests/OmarchyThemes.Stores.Tests/  xUnit, the stores wired to Core's fakes
   tools/Generate-AppIcon.ps1       renders Assets/AppIcon.png + .ico
+  tools/Publish-App.ps1            release build: self-contained publish, zipped
 macos/
   project.yml                      XcodeGen spec (the .xcodeproj is generated, not committed)
   App/                             SwiftUI app target
@@ -38,7 +39,10 @@ cli/                               Rust command-line tool (omatheme), one crate:
   src/                             catalog, GitHub, palettes, store, theming, platform/ (both backends), terminals/, cli/
   tests/live.rs                    opt-in live checks
 fixtures/                          test fixtures shared by the Windows and Swift tests
+scripts/                           version.sh (one version for every client), release builds for macOS and the CLI
+.github/workflows/                 ci.yml (build + test everything), release.yml (build + publish a release)
 docs/ARCHITECTURE.md               this file
+docs/RELEASING.md                  how releases are made, what's in one, signing
 docs/screenshots/                  README screenshots
 ```
 
@@ -89,6 +93,11 @@ macOS they go to the unified log (`os.Logger`, subsystem `com.justinhhorner.Omar
   `OmarchyThemesKit` runs the package alone, no Xcode project needed). The app isn't sandboxed (it has
   to copy your current wallpaper from wherever it lives before the first Apply) and is built with the
   hardened runtime for Developer ID distribution. Debug builds are signed ad hoc.
+
+### CI and releases
+
+GitHub Actions builds and tests every client on each push to `main` and each pull request, and a
+release workflow builds and publishes all of them from a tag. See [RELEASING.md](RELEASING.md).
 
 ## Architecture (macOS)
 
