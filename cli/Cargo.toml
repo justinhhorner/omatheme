@@ -1,6 +1,6 @@
 [package]
 name = "omatheme"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Omarchy Themes for the command line: browse the Omarchy theme gallery and apply a theme on macOS and Windows"
 publish = false
