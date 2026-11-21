@@ -38,7 +38,11 @@ function render() {
     }
     const mark = document.createElement('span'); mark.className = 'selection-mark'; mark.textContent = '✓'; mark.setAttribute('aria-hidden', 'true');
     details.append(title, swatches); card.append(image, details, mark);
-    card.addEventListener('click', () => selectTheme(theme)); grid.append(card);
+    card.addEventListener('click', () => {
+      selectTheme(theme);
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+    grid.append(card);
   }
 }
 function selectTheme(theme) {
