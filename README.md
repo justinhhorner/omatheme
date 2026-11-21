@@ -33,7 +33,7 @@ A native desktop companion for [Omarchy Themes](https://omarchy.org/themes/).
 
 | Platform | Stack | Status |
 |---|---|---|
-| Windows 10 (19041+) / 11 | WinUI 3 · Windows App SDK 2.5 · .NET 10 | Working v0.1 (`windows/`) |
+| Windows 10 (19041+) / 11 | WinUI 3 · Windows App SDK 2.7 · .NET 10 | Working v0.1 (`windows/`) |
 | macOS 14+ | SwiftUI · Swift 6 · XcodeGen | Working v0.1 (`macos/`) |
 | Command line: macOS, Windows (list, download and terminal colors on Linux too) | Rust | Working v0.1 (`cli/`) |
 

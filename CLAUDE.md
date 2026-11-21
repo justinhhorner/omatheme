@@ -55,7 +55,7 @@ with file pointers in `docs/cli-to-apps.md`: age-gated cleanup of interrupted do
 
 - **Separate native apps per platform, no cross-platform UI.** A Tauri plan was rejected in favour of WinUI 3 on
   Windows and **SwiftUI on macOS**. Each app follows its OS's conventions; don't reskin one look for both.
-- Windows app: `windows/`, WinUI 3 + Windows App SDK 2.5 + .NET 10, unpackaged and self-contained. **Done (v0.1).**
+- Windows app: `windows/`, WinUI 3 + Windows App SDK 2.7 + .NET 10, unpackaged and self-contained. **Done (v0.1).**
 - macOS app: `macos/`, **in progress**. See "macOS plan" below (confirmed Sep 2026).
 - macOS: **no App Sandbox.** Distribute as Developer ID + hardened runtime. The snapshot must copy the user's
   current wallpaper from wherever it lives (e.g. `~/Pictures`), which the sandbox blocks without a file prompt.

@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "OmarchyThemesStores", targets: ["OmarchyThemesStores"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.13.9"),
+        .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.14.4"),
     ],
     targets: [
         .target(
