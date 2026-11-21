@@ -158,12 +158,14 @@ struct ThemeLibraryTests {
         #expect(stores.banners[.theme(Harness.tokyoEntry.slug)]?.title == "Download failed")
     }
 
-    @Test func aCancelledDownloadSavesNothing() async {
+    @Test(.timeLimit(.minutes(1))) func aCancelledDownloadSavesNothing() async {
         harness.serveCatalog()
         let stores = harness.makeStores()
+        // Hold the download mid-file: a yield alone let it finish first on a fast machine.
+        harness.downloader.hold()
 
         let download = Task { await stores.library.download(Harness.tokyoEntry) }
-        await Task.yield() // the download starts, then waits for its own task
+        await harness.downloader.waitUntilADownloadStarts()
         stores.library.cancelDownload(Harness.tokyoEntry.slug)
 
         #expect(await download.value == nil)

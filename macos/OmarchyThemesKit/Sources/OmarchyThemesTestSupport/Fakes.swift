@@ -86,13 +86,17 @@ public final class TempDir {
     public var paths: AppPaths { AppPaths(root: url) }
 }
 
-/// Writes the URL into the file instead of downloading; can be told to fail for a URL.
+/// Writes the URL into the file instead of downloading; can be told to fail for a URL, or to hold
+/// downloads mid-file so a test can cancel one deterministically.
 public final class FakeDownloader: Downloader, @unchecked Sendable {
     public init() {}
 
     private let lock = NSLock()
     private var failing: Set<String> = []
     private var done: [URL] = []
+    private var holding = false
+    private var startedCount = 0
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
 
     public var downloaded: [URL] { lock.withLock { done } }
 
@@ -100,8 +104,38 @@ public final class FakeDownloader: Downloader, @unchecked Sendable {
         lock.withLock { _ = failing.insert(url.absoluteString) }
     }
 
+    /// Downloads wait, once started, until they're cancelled or `release()` is called.
+    public func hold() {
+        lock.withLock { holding = true }
+    }
+
+    public func release() {
+        lock.withLock { holding = false }
+    }
+
+    /// Returns once a download has started (with `hold()`, it's then waiting mid-file).
+    public func waitUntilADownloadStarts() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let started = lock.withLock {
+                if startedCount > 0 { return true }
+                startWaiters.append(continuation)
+                return false
+            }
+            if started { continuation.resume() }
+        }
+    }
+
     public func download(from url: URL, to destination: URL, progress: (@Sendable (Int64) -> Void)?) async throws {
         try Task.checkCancellation()
+        let waiters = lock.withLock {
+            startedCount += 1
+            defer { startWaiters = [] }
+            return startWaiters
+        }
+        waiters.forEach { $0.resume() }
+        while lock.withLock({ holding }) {
+            try await Task.sleep(for: .milliseconds(5)) // throws once the download is cancelled
+        }
         if lock.withLock({ failing.contains(url.absoluteString) }) {
             throw URLError(.cannotConnectToHost)
         }
