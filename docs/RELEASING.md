@@ -34,7 +34,7 @@ The workflow:
 ```bash
 scripts/version.sh set minor          # or patch, major, 1.2.0 …; prints the new version
 git commit -am "Release v0.2.0"
-git tag -a v0.2.0 -m "Omarchy Themes 0.2.0"
+git tag -a v0.2.0 -m "Omatheme 0.2.0"
 git push origin main v0.2.0
 ```
 
@@ -59,7 +59,7 @@ described at the top of the script.
 | File | What |
 |---|---|
 | `OmarchyThemes-X.Y.Z-macos.dmg` | macOS 14+ app, universal (Apple silicon and Intel) |
-| `OmarchyThemes-X.Y.Z-windows-x64.zip`, `…-arm64.zip` | Windows 10 (19041+)/11 app: unpackaged and self-contained (.NET and the Windows App SDK included). Unzip and run `Omarchy Themes\OmarchyThemes.exe`. |
+| `OmarchyThemes-X.Y.Z-windows-x64.zip`, `…-arm64.zip` | Windows 10 (19041+)/11 app: unpackaged and self-contained (.NET and the Windows App SDK included). Unzip and run `Omatheme\Omatheme.exe`. |
 | `omatheme-X.Y.Z-macos-universal.tar.gz` | CLI for macOS |
 | `omatheme-X.Y.Z-windows-x64.zip`, `…-arm64.zip` | CLI for Windows |
 | `omatheme-X.Y.Z-linux-x64.tar.gz` | CLI for Linux (list, download and terminal colors) |

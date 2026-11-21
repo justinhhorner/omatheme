@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="design/AppIcon.svg" width="128" height="128" alt="Omarchy Themes app icon">
+  <img src="design/AppIcon.svg" width="128" height="128" alt="Omatheme app icon">
 </p>
 
-<h1 align="center">Omarchy Themes</h1>
+<h1 align="center">Omatheme</h1>
 
 <p align="center">
   Browse the <a href="https://omarchy.org">Omarchy</a> themes and bring their wallpapers and colors<br>

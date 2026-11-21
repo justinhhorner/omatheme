@@ -12,7 +12,7 @@
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <Image Width="64" Height="64" Source="ms-appx:///Assets/AppIcon.png" />
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Omarchy Themes" />
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Omatheme" />
                     <TextBlock x:Name="VersionText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
             </StackPanel>

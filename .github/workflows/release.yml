@@ -96,7 +96,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit --all --message "Release $TAG"
-          git tag --annotate "$TAG" --message "Omarchy Themes $VERSION"
+          git tag --annotate "$TAG" --message "Omatheme $VERSION"
           # Fails (and releases nothing) if main moved since this run started.
           git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$TAG"
 
@@ -276,7 +276,7 @@ jobs:
             echo "| **Windows 10 (19041+) / 11** app | \`OmarchyThemes-$VERSION-windows-x64.zip\` or \`…-arm64.zip\` |"
             echo "| \`omatheme\` command line | \`omatheme-$VERSION-<platform>.tar.gz\` / \`.zip\` |"
             echo
-            echo "The Windows app needs no installer: unzip it anywhere and run \`OmarchyThemes.exe\`."
+            echo "The Windows app needs no installer: unzip it anywhere and run \`Omatheme.exe\`."
             echo "It isn't code-signed, so SmartScreen may ask first (More info → Run anyway)."
             if [[ "$MAC_NOTARIZED" != true ]]; then
               echo
@@ -289,7 +289,7 @@ jobs:
           [[ "$VERSION" == *-* ]] && prerelease=(--prerelease)
           gh release create "$TAG" dist/* \
             --verify-tag \
-            --title "Omarchy Themes $VERSION" \
+            --title "Omatheme $VERSION" \
             --notes-file notes.md \
             --generate-notes \
             ${prerelease[@]+"${prerelease[@]}"}

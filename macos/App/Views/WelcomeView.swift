@@ -20,7 +20,7 @@ struct WelcomeView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 8) {
-                Text("Welcome to Omarchy Themes")
+                Text("Welcome to Omatheme")
                     .font(.largeTitle.weight(.bold))
                 Text("Bring Omarchy's themes to your Mac.")
                     .font(.title3)

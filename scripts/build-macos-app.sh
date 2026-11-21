@@ -23,7 +23,7 @@ out_dir="$(cd "$out_dir" && pwd)"
 version="$("$root/scripts/version.sh" get)"
 identity="${MACOS_SIGN_IDENTITY:-}"
 keychain="${MACOS_KEYCHAIN:-}"
-app_name="Omarchy Themes"
+app_name="Omatheme"
 dmg="$out_dir/OmarchyThemes-$version-macos.dmg"
 
 cd "$root/macos"

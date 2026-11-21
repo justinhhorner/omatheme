@@ -68,7 +68,7 @@ pub fn draw(frame: &mut Frame, app: &App, list_state: &mut ListState) {
 }
 
 fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
-    let mut left = vec![Span::styled(" Omarchy Themes", bold())];
+    let mut left = vec![Span::styled(" Omatheme", bold())];
     if app.catalog_loading {
         left.push(Span::styled(format!("  {} loading themes…", SPINNER[app.tick % 4]), dim()));
     } else {

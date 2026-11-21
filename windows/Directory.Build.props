@@ -3,8 +3,8 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Company>Omarchy Themes contributors</Company>
-    <Product>Omarchy Themes</Product>
+    <Company>Omatheme contributors</Company>
+    <Product>Omatheme</Product>
     <Version>0.1.0</Version>
   </PropertyGroup>
 </Project>

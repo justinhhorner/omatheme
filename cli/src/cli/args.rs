@@ -11,7 +11,7 @@ Browse the Omarchy theme gallery (https://omarchy.org/themes/) and the themes th
 Omarchy, download them, and apply a theme's look to this computer: its wallpaper everywhere, \
 light/dark and the accent color on Windows. It can also send a theme's colors to your terminal.
 
-It shares its data folder with the Omarchy Themes app on the same computer, so themes downloaded \
+It shares its data folder with the Omatheme app on the same computer, so themes downloaded \
 in one show up in the other, and either can restore your original desktop.";
 
 const CREDITS: &str = "\

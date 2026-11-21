@@ -6,7 +6,7 @@
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <RootNamespace>OmarchyThemes.App</RootNamespace>
-    <AssemblyName>OmarchyThemes</AssemblyName>
+    <AssemblyName>Omatheme</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <UseWinUI>true</UseWinUI>
@@ -31,7 +31,7 @@
     <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- `dotnet publish` leaves out the app's PRI (OmarchyThemes.pri: its resources and, in Release, its
+  <!-- `dotnet publish` leaves out the app's PRI (Omatheme.pri: its resources and, in Release, its
        compiled XAML), so a published app can't load its pages. The MSIX tooling publishes it
        (AddProjectPriToResolvedFileToPublish), but that tooling is off in an unpackaged app, where MRT Core
        only writes the PRI to the build output. This adds it the same way. -->

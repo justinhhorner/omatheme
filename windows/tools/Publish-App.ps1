@@ -1,7 +1,7 @@
 # Publishes the Windows app for release: unpackaged, self-contained (.NET and the Windows App SDK
 # included, nothing to install), zipped as
 #   <OutputDir>\OmarchyThemes-<version>-windows-<arch>.zip
-# with an "Omarchy Themes" folder inside holding OmarchyThemes.exe.
+# with an "Omatheme" folder inside holding Omatheme.exe.
 #
 # Usage (PowerShell 7 on Windows, from anywhere):
 #   ./windows/tools/Publish-App.ps1 -Runtime win-x64 -OutputDir dist
@@ -32,7 +32,7 @@ $OutputDir = (Resolve-Path $OutputDir).Path
 $zip = Join-Path $OutputDir "OmarchyThemes-$version-windows-$arch.zip"
 
 $staging = Join-Path ([System.IO.Path]::GetTempPath()) "omatheme-publish-$([guid]::NewGuid())"
-$appDir = Join-Path $staging 'Omarchy Themes'
+$appDir = Join-Path $staging 'Omatheme'
 try {
     dotnet publish $project `
         --configuration Release `
@@ -43,14 +43,14 @@ try {
 
     # What the app can't start without: the exe, its own PRI (its compiled XAML; the Windows App SDK's
     # .pri files don't count) and the Windows App SDK runtime.
-    foreach ($file in 'OmarchyThemes.exe', 'OmarchyThemes.pri', 'Microsoft.WindowsAppRuntime.dll', 'Microsoft.UI.Xaml.dll') {
+    foreach ($file in 'Omatheme.exe', 'Omatheme.pri', 'Microsoft.WindowsAppRuntime.dll', 'Microsoft.UI.Xaml.dll') {
         if (-not (Test-Path (Join-Path $appDir $file) -PathType Leaf)) {
             throw "The publish output has no $file"
         }
     }
-    $exe = Get-Item (Join-Path $appDir 'OmarchyThemes.exe')
+    $exe = Get-Item (Join-Path $appDir 'Omatheme.exe')
     if (-not $exe.VersionInfo.ProductVersion.StartsWith($version)) {
-        throw "OmarchyThemes.exe says $($exe.VersionInfo.ProductVersion), the repo says $version"
+        throw "Omatheme.exe says $($exe.VersionInfo.ProductVersion), the repo says $version"
     }
     # Debug symbols stay out of the download.
     Get-ChildItem -Path $appDir -Filter '*.pdb' -Recurse | Remove-Item
@@ -72,14 +72,14 @@ try {
         $log = Get-ChildItem -Path (Join-Path $data 'logs') -Filter '*.log' -ErrorAction SilentlyContinue |
             Get-Content -Raw
         if ($log) { Write-Host "App log:`n$log" }
-        if (-not $running) { throw "OmarchyThemes.exe exited during startup (exit code $($process.ExitCode))" }
-        if ($log -match '\[Critical\]') { throw 'OmarchyThemes.exe logged a critical error during startup' }
+        if (-not $running) { throw "Omatheme.exe exited during startup (exit code $($process.ExitCode))" }
+        if ($log -match '\[Critical\]') { throw 'Omatheme.exe logged a critical error during startup' }
         Write-Host 'Smoke test passed: the app started and kept running.'
     }
 
     if (Test-Path $zip) { Remove-Item $zip }
     Compress-Archive -Path $appDir -DestinationPath $zip -CompressionLevel Optimal
-    Write-Host "Built Omarchy Themes $version for $Runtime"
+    Write-Host "Built Omatheme $version for $Runtime"
     $zip
 }
 finally {

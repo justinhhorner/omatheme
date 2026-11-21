@@ -7,7 +7,7 @@ struct OmarchyThemesApp: App {
     @State private var model = AppModel()
 
     var body: some Scene {
-        Window("Omarchy Themes", id: WindowID.main) {
+        Window("Omatheme", id: WindowID.main) {
             ContentView()
                 .appEnvironment(model)
                 .frame(minWidth: 820, minHeight: 540)
@@ -38,7 +38,7 @@ struct AppCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
-            Button("About Omarchy Themes") { AboutPanel.show() }
+            Button("About Omatheme") { AboutPanel.show() }
         }
         CommandGroup(replacing: .newItem) {}
 

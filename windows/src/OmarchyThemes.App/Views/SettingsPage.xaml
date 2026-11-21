@@ -105,7 +105,7 @@
 
             <TextBlock Style="{StaticResource SectionHeaderTextStyle}" Text="About" />
             <c:SettingsRow
-                Description="See the introduction to Omarchy Themes again."
+                Description="See the introduction to Omatheme again."
                 Glyph="&#xE8BC;"
                 Header="Welcome screen">
                 <Button
