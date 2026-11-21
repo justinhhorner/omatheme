@@ -1168,10 +1168,12 @@ pub(crate) mod tests {
     #[test]
     fn the_terminal_dialog_adds_to_installed_terminals_only() {
         let mut app = app();
+        // Start on iTerm2 whatever this OS's default is (the saved choice wins over it).
+        app.settings.terminal_app = Some("iterm2".into());
         press(&mut app, &[KeyCode::Down, KeyCode::Char('t')]);
         let Some(Dialog::Terminal(dialog)) = app.dialog.clone() else { panic!() };
         assert_eq!(dialog.name, "Tokyo Night");
-        // iTerm2 (the default) isn't installed here.
+        // iTerm2 isn't installed here.
         assert!(press(&mut app, &[KeyCode::Enter]).is_empty());
         assert!(app.message.as_ref().unwrap().text.contains("Install iTerm2"));
         let effects = press(&mut app, &[KeyCode::Down, KeyCode::Enter]);
